@@ -48,6 +48,7 @@ addEventListener('resize', () => {
 });
 
 // ------------------------------------------------------------------- world
+const colliders = [];
 const SEA_Y = -0.55, SHORE_Z = 26;
 const beachY = z => z <= SHORE_Z ? 0 : -0.028 * (z - SHORE_Z) * (z - SHORE_Z) / ((z - SHORE_Z) + 6);
 const groundY = (x, z) => beachY(z);
@@ -323,8 +324,11 @@ const palms = [];
     palms.push(tree);
   }
   [[-9, 22, 8], [9, 21, 9], [-11, 8, 7.5], [11, 7, 8.5], [-9, -6, 8], [10, -8, 8.6],
-   [-22, 14, 8.6], [22, 12, 8], [-30, 26, 9], [30, 25, 8.4], [-16, 30, 7.6], [17, 30, 8.8],
-   [-42, 4, 8.2], [44, 8, 8.8]].forEach(s => palm(s[0], s[1], s[2]));
+   [-22, 14, 8.6], [22, 12, 8], [-16, 30, 7.6], [17, 30, 8.8],
+   [-42, 4, 8.2], [44, 8, 8.8], [26, 28, 8.2], [46, 16, 9], [52, 30, 7.8],
+   [-36, 30, 8.5], [-30, 40, 9.2], [-88, 32, 8.6], [-84, 14, 9], [-62, 2, 8.2],
+   [-40, 20, 7.6], [30, 38, 8.8], [-14, 42, 8], [58, 6, 8.4], [64, 22, 8],
+   [-52, 42, 8.8], [-72, 44, 8.2], [-96, 22, 7.8]].forEach(s => palm(s[0], s[1], s[2]));
 }
 
 // resort towers + welcome arch + torches (kept minimal, PBR-lit)
@@ -347,17 +351,82 @@ const palms = [];
     t.colorSpace = THREE.SRGBColorSpace;
     return t;
   }
-  function tower(x, z, w, d, h, tint) {
+  function tower(x, z, w, d, h, tint, endTex) {
     const roofM = new THREE.MeshStandardMaterial({ color: 0x8e8478, roughness: 0.9 });
     const mW = new THREE.MeshStandardMaterial({ map: facade(Math.round(h / 3.4), Math.round(w / 2.6), tint), roughness: 0.4, metalness: 0.15 });
-    const mD = new THREE.MeshStandardMaterial({ map: facade(Math.round(h / 3.4), Math.round(d / 2.6), tint), roughness: 0.4, metalness: 0.15 });
+    const mD = endTex
+      ? new THREE.MeshStandardMaterial({ map: endTex, roughness: 0.5 })
+      : new THREE.MeshStandardMaterial({ map: facade(Math.round(h / 3.4), Math.round(d / 2.6), tint), roughness: 0.4, metalness: 0.15 });
     const m = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), [mD, mD, roofM, roofM, mW, mW]);
     m.position.set(x, h / 2, z);
     m.castShadow = true;
     scene.add(m);
+    colliders.push({ x, z, hx: w / 2 + 1, hz: d / 2 + 1 });
   }
-  tower(-34, -46, 22, 15, 66, '#e8ddcb');
-  tower(12, -52, 28, 16, 84, '#efe6d6');
+
+  // Rainbow Tower: the icon — giant rainbow mosaics on both end walls
+  const rainbowTex = (() => {
+    const cv = document.createElement('canvas'); cv.width = 256; cv.height = 1024;
+    const cx = cv.getContext('2d');
+    cx.fillStyle = '#f2efe6'; cx.fillRect(0, 0, 256, 1024);
+    const bands = ['#8a3fae', '#2b4fd8', '#1b9de0', '#27a84a', '#f2c72e', '#f28c1e', '#e13a2a'];
+    const bw = 15;
+    bands.forEach((c2, i) => {
+      const r = 118 - i * bw;
+      cx.strokeStyle = c2; cx.lineWidth = bw;
+      cx.beginPath();
+      cx.arc(128, 138, r, Math.PI, 0);       // arch at the top
+      cx.stroke();
+      cx.fillStyle = c2;                      // legs running down the full wall
+      cx.fillRect(128 - r - bw / 2, 138, bw, 1024 - 138);
+      cx.fillRect(128 + r - bw / 2, 138, bw, 1024 - 138);
+    });
+    const t = new THREE.CanvasTexture(cv);
+    t.colorSpace = THREE.SRGBColorSpace;
+    t.anisotropy = renderer.capabilities.getMaxAnisotropy();
+    return t;
+  })();
+  // tapa-pattern crown band for the Tapa Tower
+  const tapaTex = (() => {
+    const cv = document.createElement('canvas'); cv.width = 512; cv.height = 1024;
+    const cx = cv.getContext('2d');
+    cx.fillStyle = '#e3d5bd'; cx.fillRect(0, 0, 512, 1024);
+    // windows
+    for (let f = 0; f < 26; f++) for (let c2 = 0; c2 < 14; c2++) {
+      cx.fillStyle = Math.random() > 0.5 ? '#9fc4d8' : '#7ba9c2';
+      cx.fillRect(c2 * 36 + 6, 120 + f * 33 + 6, 25, 21);
+    }
+    // dark geometric tapa band at the crown
+    cx.fillStyle = '#4a3524'; cx.fillRect(0, 0, 512, 100);
+    cx.fillStyle = '#e3d5bd';
+    for (let i = 0; i < 16; i++) {
+      cx.beginPath();
+      cx.moveTo(i * 32, 100); cx.lineTo(i * 32 + 16, 40); cx.lineTo(i * 32 + 32, 100);
+      cx.closePath(); cx.fill();
+    }
+    const t = new THREE.CanvasTexture(cv);
+    t.colorSpace = THREE.SRGBColorSpace;
+    return t;
+  })();
+
+  // the Hilton Hawaiian Village ensemble (approximate real layout)
+  tower(-30, -10, 64, 17, 88, '#f0ebdd', rainbowTex);          // Rainbow Tower, beachfront
+  {                                                             // Tapa Tower behind
+    const m = new THREE.Mesh(new THREE.BoxGeometry(52, 100, 20),
+      [new THREE.MeshStandardMaterial({ map: tapaTex, roughness: 0.5 }),
+       new THREE.MeshStandardMaterial({ map: tapaTex, roughness: 0.5 }),
+       new THREE.MeshStandardMaterial({ color: 0x8e8478 }),
+       new THREE.MeshStandardMaterial({ color: 0x8e8478 }),
+       new THREE.MeshStandardMaterial({ map: tapaTex, roughness: 0.5 }),
+       new THREE.MeshStandardMaterial({ map: tapaTex, roughness: 0.5 })]);
+    m.position.set(18, 50, -52);
+    m.castShadow = true;
+    scene.add(m);
+    colliders.push({ x: 18, z: -52, hx: 27, hz: 11 });
+  }
+  tower(34, -8, 28, 15, 52, '#efe2cc');                         // Ali'i Tower, beachfront east
+  tower(-78, -24, 38, 17, 72, '#e8ddcb');                       // Lagoon Tower, over the lagoon
+  tower(52, -48, 30, 28, 86, '#e2d5c0');                        // Grand Islander, mauka east
 
   // arch
   const postM = new THREE.MeshStandardMaterial({ color: 0x6e4a28, roughness: 0.85 });
@@ -410,6 +479,171 @@ const palms = [];
   });
 }
 
+// Duke Kahanamoku Lagoon: calm turquoise pool ringed with sand and palms
+const LAGOON = { x: -62, z: 30, r: 24 };
+{
+  const rim = new THREE.Mesh(new THREE.CircleGeometry(LAGOON.r + 5, 48),
+    new THREE.MeshStandardMaterial({ color: 0xdcc79b, roughness: 1 }));
+  rim.rotation.x = -Math.PI / 2;
+  rim.position.set(LAGOON.x, 0.03, LAGOON.z);
+  rim.receiveShadow = true;
+  scene.add(rim);
+  const lag = new THREE.Mesh(new THREE.CircleGeometry(LAGOON.r, 48),
+    new THREE.MeshStandardMaterial({ color: 0x35b9c9, roughness: 0.08, metalness: 0.1, transparent: true, opacity: 0.94 }));
+  lag.rotation.x = -Math.PI / 2;
+  lag.position.set(LAGOON.x, 0.06, LAGOON.z);
+  scene.add(lag);
+  colliders.push({ x: LAGOON.x, z: LAGOON.z, hx: LAGOON.r, hz: LAGOON.r });
+}
+
+// breakwater sheltering the swimming beach
+{
+  const rockM = new THREE.MeshStandardMaterial({ color: 0x33302c, roughness: 0.95 });
+  const rg = new THREE.DodecahedronGeometry(1, 1);
+  for (let i = 0; i <= 22; i++) {
+    const x = -48 + i * 3.4;
+    const z = 70 + Math.sin(i * 0.35) * 3;
+    const m = new THREE.Mesh(rg, rockM);
+    const sc = 1.4 + Math.random() * 1.2;
+    m.scale.set(sc, sc * 0.55, sc);
+    m.position.set(x, SEA_Y + 0.25, z);
+    m.rotation.set(Math.random(), Math.random() * 6.3, Math.random() * 0.4);
+    m.castShadow = true;
+    scene.add(m);
+  }
+}
+
+// beach catamaran
+{
+  const g = new THREE.Group();
+  const hullM = new THREE.MeshStandardMaterial({ color: 0xf5f1e8, roughness: 0.4 });
+  [-1.1, 1.1].forEach(hx => {
+    const hull = new THREE.Mesh(new THREE.SphereGeometry(1, 14, 10), hullM);
+    hull.scale.set(0.32, 0.3, 2.6);
+    hull.position.set(hx, 0.3, 0);
+    hull.castShadow = true;
+    g.add(hull);
+  });
+  const deck = new THREE.Mesh(new THREE.BoxGeometry(2.6, 0.08, 3.4),
+    new THREE.MeshStandardMaterial({ color: 0x2a9d8f, roughness: 0.8 }));
+  deck.position.y = 0.55;
+  deck.castShadow = true;
+  g.add(deck);
+  const mast = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.07, 7, 8),
+    new THREE.MeshStandardMaterial({ color: 0xd9d2c0, roughness: 0.5 }));
+  mast.position.y = 4;
+  g.add(mast);
+  const sail = new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.2, 6.4, 8),
+    new THREE.MeshStandardMaterial({ color: 0xf2c72e, roughness: 0.7 }));
+  sail.position.set(0.12, 3.9, 0);
+  sail.rotation.z = 0.04;
+  g.add(sail);
+  g.position.set(14, groundY(14, 44), 44);
+  g.rotation.y = 0.5;
+  scene.add(g);
+  colliders.push({ x: 14, z: 44, hx: 2.2, hz: 2.6 });
+}
+
+// Tropics-style thatched beach bar
+{
+  const g = new THREE.Group();
+  const thCv = document.createElement('canvas'); thCv.width = 256; thCv.height = 128;
+  const tx = thCv.getContext('2d');
+  tx.fillStyle = '#8a6a3c'; tx.fillRect(0, 0, 256, 128);
+  for (let y = 0; y < 128; y += 5) {
+    tx.strokeStyle = `rgba(60,42,20,${0.3 + Math.random() * 0.3})`;
+    tx.beginPath(); tx.moveTo(0, y); tx.lineTo(256, y + (Math.random() - 0.5) * 4); tx.stroke();
+  }
+  const thT = new THREE.CanvasTexture(thCv);
+  thT.colorSpace = THREE.SRGBColorSpace;
+  const roof = new THREE.Mesh(new THREE.ConeGeometry(6.5, 3, 4),
+    new THREE.MeshStandardMaterial({ map: thT, roughness: 1 }));
+  roof.rotation.y = Math.PI / 4;
+  roof.scale.set(1.4, 1, 1);
+  roof.position.y = 5;
+  roof.castShadow = true;
+  g.add(roof);
+  [[-5, -2.5], [5, -2.5], [-5, 2.5], [5, 2.5]].forEach(pp => {
+    const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.16, 0.16, 3.8, 8),
+      new THREE.MeshStandardMaterial({ color: 0x6e4a28 }));
+    pole.position.set(pp[0], 1.9, pp[1]);
+    g.add(pole);
+  });
+  const counter = new THREE.Mesh(new THREE.BoxGeometry(8, 1.1, 1.2),
+    new THREE.MeshStandardMaterial({ color: 0x8a5c30, roughness: 0.8 }));
+  counter.position.set(0, 0.55, 1.6);
+  counter.castShadow = true;
+  g.add(counter);
+  g.position.set(38, 0.02, 22);
+  g.rotation.y = -0.25;
+  scene.add(g);
+  colliders.push({ x: 38, z: 22, hx: 5, hz: 3 });
+}
+
+// Super Pool at the Rainbow Tower's feet
+{
+  const pool = new THREE.Mesh(new THREE.CircleGeometry(11, 40),
+    new THREE.MeshStandardMaterial({ color: 0x37b8d2, roughness: 0.1, metalness: 0.08, transparent: true, opacity: 0.94 }));
+  pool.rotation.x = -Math.PI / 2;
+  pool.scale.set(1.5, 1, 1);
+  pool.position.set(-26, 0.05, 10);
+  scene.add(pool);
+  const deckR = new THREE.Mesh(new THREE.CircleGeometry(14.5, 40),
+    new THREE.MeshStandardMaterial({ color: 0xd9cba8, roughness: 0.9 }));
+  deckR.rotation.x = -Math.PI / 2;
+  deckR.scale.set(1.5, 1, 1);
+  deckR.position.set(-26, 0.028, 10);
+  deckR.receiveShadow = true;
+  scene.add(deckR);
+  colliders.push({ x: -26, z: 10, hx: 16, hz: 11 });
+}
+
+// Friday fireworks over the lagoon — press F
+const fireworks = [];
+{
+  const fCv = document.createElement('canvas'); fCv.width = fCv.height = 32;
+  const fx = fCv.getContext('2d');
+  const fg = fx.createRadialGradient(16, 16, 1, 16, 16, 16);
+  fg.addColorStop(0, 'rgba(255,255,255,1)');
+  fg.addColorStop(1, 'rgba(255,255,255,0)');
+  fx.fillStyle = fg; fx.fillRect(0, 0, 32, 32);
+  const fTex = new THREE.CanvasTexture(fCv);
+  const cols = [0xff5e8a, 0xffd166, 0x9be15d, 0x39c1e0, 0xc98cff, 0xff8f4a];
+  window.__launchFirework = () => {
+    const cx0 = LAGOON.x + (Math.random() - 0.5) * 30;
+    const cy0 = 55 + Math.random() * 25;
+    const cz0 = LAGOON.z + (Math.random() - 0.5) * 20;
+    const col = cols[(Math.random() * cols.length) | 0];
+    const flash = new THREE.PointLight(col, 800, 220, 2);
+    flash.position.set(cx0, cy0, cz0);
+    scene.add(flash);
+    const parts = [];
+    for (let i = 0; i < 46; i++) {
+      const sp = new THREE.Sprite(new THREE.SpriteMaterial({
+        map: fTex, color: col, blending: THREE.AdditiveBlending, depthWrite: false, transparent: true }));
+      sp.material.toneMapped = false;
+      sp.position.set(cx0, cy0, cz0);
+      sp.scale.set(1.6, 1.6, 1);
+      const th = Math.random() * 6.283, ph2 = Math.acos(2 * Math.random() - 1);
+      const v = 9 + Math.random() * 7;
+      parts.push({ sp, vx: v * Math.sin(ph2) * Math.cos(th), vy: v * Math.cos(ph2), vz: v * Math.sin(ph2) * Math.sin(th) });
+      scene.add(sp);
+    }
+    fireworks.push({ parts, flash, life: 1.9 });
+    if (window.__music && window.__music.ctx) {
+      const ctx = window.__music.ctx, t0 = ctx.currentTime;
+      const o = ctx.createOscillator(), gg = ctx.createGain();
+      o.type = 'sine';
+      o.frequency.setValueAtTime(160, t0);
+      o.frequency.exponentialRampToValueAtTime(40, t0 + 0.5);
+      gg.gain.setValueAtTime(0.4, t0);
+      gg.gain.exponentialRampToValueAtTime(0.001, t0 + 0.7);
+      o.connect(gg); gg.connect(window.__music.gain || ctx.destination);
+      o.start(t0); o.stop(t0 + 0.8);
+    }
+  };
+}
+
 // ---------------------------------------------------------------- character
 let sumo = null, mixer = null, actions = {}, current = null;
 let facing = 0, camYaw = Math.PI, camPitch = 0.18, camDist = 6.5;
@@ -447,7 +681,14 @@ function setAction(n) {
 }
 
 // ------------------------------------------------------------------- input
-addEventListener('keydown', e => { keys[e.code] = true; });
+addEventListener('keydown', e => {
+  keys[e.code] = true;
+  if (e.code === 'KeyF' && window.__launchFirework) {
+    window.__launchFirework();
+    setTimeout(() => window.__launchFirework(), 350);
+    setTimeout(() => window.__launchFirework(), 800);
+  }
+});
 addEventListener('keyup', e => { keys[e.code] = false; });
 let drag = false, lx = 0, ly = 0;
 canvas.addEventListener('mousedown', e => { drag = true; lx = e.clientX; ly = e.clientY; });
@@ -486,8 +727,18 @@ function animate() {
       while (diff < -Math.PI) diff += Math.PI * 2;
       facing += diff * Math.min(1, dt * 8);
       const speed = run ? 4.6 : 1.7;
-      sumo.position.x = Math.max(-70, Math.min(70, sumo.position.x + Math.sin(facing) * speed * dt));
-      sumo.position.z = Math.max(-55, Math.min(58, sumo.position.z + Math.cos(facing) * speed * dt));
+      let nx = Math.max(-110, Math.min(110, sumo.position.x + Math.sin(facing) * speed * dt));
+      let nz = Math.max(-60, Math.min(58, sumo.position.z + Math.cos(facing) * speed * dt));
+      for (const c of colliders) {
+        const dx = nx - c.x, dz = nz - c.z;
+        const ox = c.hx + 0.8 - Math.abs(dx), oz = c.hz + 0.8 - Math.abs(dz);
+        if (ox > 0 && oz > 0) {
+          if (ox < oz) nx = c.x + (dx > 0 ? 1 : -1) * (c.hx + 0.8);
+          else nz = c.z + (dz > 0 ? 1 : -1) * (c.hz + 0.8);
+        }
+      }
+      sumo.position.x = nx;
+      sumo.position.z = nz;
       setAction(run ? 'run' : 'walk');
     } else setAction('idle');
     sumo.rotation.y = facing + Math.PI; // model faces -Z
@@ -515,6 +766,24 @@ function animate() {
   for (const c of (window.__clouds || [])) {
     c.position.x += c.userData.v * dt;
     if (c.position.x > 1500) c.position.x = -1500;
+  }
+  for (let i = fireworks.length - 1; i >= 0; i--) {
+    const fw = fireworks[i];
+    fw.life -= dt;
+    if (fw.life <= 0) {
+      fw.parts.forEach(pp => scene.remove(pp.sp));
+      scene.remove(fw.flash);
+      fireworks.splice(i, 1);
+      continue;
+    }
+    fw.flash.intensity = Math.max(0, fw.life - 1.4) * 2000;
+    for (const pp of fw.parts) {
+      pp.sp.position.x += pp.vx * dt;
+      pp.sp.position.y += pp.vy * dt;
+      pp.sp.position.z += pp.vz * dt;
+      pp.vy -= 4.5 * dt;
+      pp.sp.material.opacity = Math.min(1, fw.life / 1.2);
+    }
   }
   for (const to of (window.__torches || [])) {
     const f = 0.8 + 0.28 * Math.sin(t * 13 + to.ph) + 0.16 * Math.sin(t * 29 + to.ph * 2);
