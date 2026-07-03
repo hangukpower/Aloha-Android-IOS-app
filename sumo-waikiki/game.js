@@ -1757,66 +1757,142 @@
   }
 
   // ================================================================= PLAYER
-  // Modeled on the yokozuna Hōshōryū: athletic build, white keiko-mawashi,
-  // the white tsuna rope with shide, sharp brows, chonmage topknot.
-  var playerP = buildPerson({
-    scale: 1.0, skin: 0xc57f45, belly: 0.94, chest: 1.1,
-    outfit: "rikishi", mawashi: 0xf0ead8, tsuna: true,
-    hair: "topknot", brow: 0.34, label: null
-  });
-  var sumo = playerP.g;
-  var rig = playerP.rig;
+  // The real Blender-built Hōshōryū (see aloha-hd/) loaded as a skinned GLB.
+  // Locomotion (idle/walk/run) plays its baked mocap clips directly. Special
+  // moves (stomp/dance/uke/eat/swim/relax) reuse the SAME poseX() functions
+  // written for the procedural rig above, but since the mixamo skeleton's
+  // bones have non-identity rest rotations (a real bind pose, not identity),
+  // those functions write into throwaway Object3D "dummies" shaped exactly
+  // like the procedural rig, and each frame we compose dummy.quaternion on
+  // top of each bone's captured rest quaternion: final = rest * dummyPose.
+  var sumo = new THREE.Group();
   sumo.position.set(0, 0, 14);
   scene.add(sumo);
-
-  // hand props (hidden until used)
+  var rig = null;          // becomes the dummy adapter once the GLB loads
+  var playerReady = false;
+  var playerMixer = null;
+  var playerActions = {};
+  var playerCurrentAction = null;
+  var playerBones = {};    // name -> real THREE.Bone
+  var playerRest = {};     // name -> rest THREE.Quaternion
+  var playerAllBones = [];
   var props = {};
+  var waveDummySh = new THREE.Object3D(), waveDummyEl = new THREE.Object3D();
+
   (function () {
-    var uke = new THREE.Group();
-    var ubody = new THREE.Mesh(new THREE.SphereGeometry(0.24, 12, 10),
-      new THREE.MeshStandardMaterial({ color: 0xa8763e, roughness: 0.5 }));
-    ubody.scale.set(1, 0.42, 1.28);
-    uke.add(ubody);
-    var hole = new THREE.Mesh(new THREE.CircleGeometry(0.07, 10),
-      new THREE.MeshStandardMaterial({ color: 0x241708 }));
-    hole.position.set(0, 0.105, 0.05);
-    hole.rotation.x = -Math.PI / 2;
-    uke.add(hole);
-    var neck = new THREE.Mesh(new THREE.BoxGeometry(0.07, 0.05, 0.55),
-      new THREE.MeshStandardMaterial({ color: 0x6e4a28, roughness: 0.5 }));
-    neck.position.set(0, 0.04, -0.48);
-    uke.add(neck);
-    var headstock = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.05, 0.14),
-      new THREE.MeshStandardMaterial({ color: 0x50351c, roughness: 0.5 }));
-    headstock.position.set(0, 0.05, -0.79);
-    uke.add(headstock);
-    uke.position.set(-0.1, 0.85, 0.72);
-    uke.rotation.set(0.3, 0.75, 0.15);
-    uke.visible = false;
-    rig.torso.add(uke);
-    props.uke = uke;
+    var loader = new THREE.GLTFLoader();
+    var bin = atob(window.HOSHORYU_GLB_B64);
+    var buf = new ArrayBuffer(bin.length);
+    var view = new Uint8Array(buf);
+    for (var i = 0; i < bin.length; i++) view[i] = bin.charCodeAt(i);
 
-    var bowl = new THREE.Group();
-    var bwl = new THREE.Mesh(new THREE.CylinderGeometry(0.16, 0.11, 0.14, 12),
-      new THREE.MeshStandardMaterial({ color: 0x8a3d2e, roughness: 0.4 }));
-    bowl.add(bwl);
-    var rice = new THREE.Mesh(new THREE.SphereGeometry(0.13, 10, 8),
-      new THREE.MeshStandardMaterial({ color: 0xf2ead8, roughness: 0.8 }));
-    rice.scale.y = 0.5;
-    rice.position.y = 0.07;
-    bowl.add(rice);
-    bowl.position.set(0, -0.62, 0.14);
-    bowl.visible = false;
-    rig.armL.el.add(bowl);
-    props.bowl = bowl;
+    loader.parse(buf, "", function (gltf) {
+      var model = gltf.scene;
+      model.traverse(function (o) {
+        if (o.isMesh || o.isSkinnedMesh) { o.castShadow = true; o.frustumCulled = false; }
+        if (o.isBone) {
+          playerBones[o.name] = o;
+          playerRest[o.name] = o.quaternion.clone();
+          playerAllBones.push(o);
+        }
+      });
+      // scale up to match the "huge sumo" fantasy proportions of this world
+      model.scale.setScalar(1.6);
+      sumo.add(model);
 
-    var cup = new THREE.Mesh(new THREE.CylinderGeometry(0.09, 0.07, 0.22, 10),
-      new THREE.MeshStandardMaterial({ color: 0xff9a3e, roughness: 0.3 }));
-    cup.position.set(0, -0.62, 0.14);
-    cup.visible = false;
-    rig.armR.el.add(cup);
-    props.cup = cup;
+      playerMixer = new THREE.AnimationMixer(model);
+      gltf.animations.forEach(function (clip) {
+        var m = clip.name.toLowerCase().match(/(idle|walk|run)/);
+        if (!m) return;
+        var ht = clip.tracks.filter(function (t) { return /Hips\.position/.test(t.name); })[0];
+        var hy = ht ? ht.values[1] : 1;
+        if (hy < 0.3 || hy > 2.2) return; // skip malformed exporter duplicate tracks
+        playerActions[m[1]] = playerMixer.clipAction(clip);
+      });
+      setPlayerAction("idle");
+
+      var B = playerBones;
+      var hipsRest = B["mixamorigHips"].position.clone();
+      function dummy() { return new THREE.Object3D(); }
+      rig = {
+        hips: dummy(), torso: dummy(), chest: dummy(), belly: dummy(), head: dummy(),
+        armL: { sh: dummy(), el: dummy() }, armR: { sh: dummy(), el: dummy() },
+        legL: { hip: dummy(), knee: dummy() }, legR: { hip: dummy(), knee: dummy() }
+      };
+      rig.bellyBase = rig.belly.scale.clone();
+      rig.chestBase = rig.chest.scale.clone();
+      rig.hips.position.set(0, 1.18, 0);
+
+      var COMPOSE = [
+        [rig.hips, "mixamorigHips"], [rig.torso, "mixamorigSpine"], [rig.head, "mixamorigHead"],
+        [rig.armL.sh, "mixamorigLeftArm"], [rig.armL.el, "mixamorigLeftForeArm"],
+        [rig.armR.sh, "mixamorigRightArm"], [rig.armR.el, "mixamorigRightForeArm"],
+        [rig.legL.hip, "mixamorigLeftUpLeg"], [rig.legL.knee, "mixamorigLeftLeg"],
+        [rig.legR.hip, "mixamorigRightUpLeg"], [rig.legR.knee, "mixamorigRightLeg"]
+      ];
+      window.__applyPlayerPose = function () {
+        for (var i = 0; i < playerAllBones.length; i++) {
+          var b = playerAllBones[i];
+          b.quaternion.copy(playerRest[b.name]);
+        }
+        for (var j = 0; j < COMPOSE.length; j++) {
+          var d = COMPOSE[j][0], real = B[COMPOSE[j][1]];
+          real.quaternion.copy(playerRest[COMPOSE[j][1]]).multiply(d.quaternion);
+        }
+        var hb = B["mixamorigHips"];
+        hb.position.set(hipsRest.x + rig.hips.position.x,
+          hipsRest.y + (rig.hips.position.y - 1.18), hipsRest.z + rig.hips.position.z);
+      };
+
+      // hand props, parented directly to the real bones so they follow the pose
+      var uke = new THREE.Group();
+      var ubody = new THREE.Mesh(new THREE.SphereGeometry(0.15, 12, 10),
+        new THREE.MeshStandardMaterial({ color: 0xa8763e, roughness: 0.5 }));
+      ubody.scale.set(1, 0.42, 1.28);
+      uke.add(ubody);
+      var neck = new THREE.Mesh(new THREE.BoxGeometry(0.045, 0.03, 0.34),
+        new THREE.MeshStandardMaterial({ color: 0x6e4a28, roughness: 0.5 }));
+      neck.position.set(0, 0.02, -0.3);
+      uke.add(neck);
+      uke.position.set(0.02, -0.06, 0.12);
+      uke.rotation.set(0.2, 0.4, 1.3);
+      uke.visible = false;
+      B["mixamorigLeftForeArm"].add(uke);
+      props.uke = uke;
+
+      var bowl = new THREE.Group();
+      var bwl = new THREE.Mesh(new THREE.CylinderGeometry(0.1, 0.07, 0.09, 12),
+        new THREE.MeshStandardMaterial({ color: 0x8a3d2e, roughness: 0.4 }));
+      bowl.add(bwl);
+      var rice = new THREE.Mesh(new THREE.SphereGeometry(0.082, 10, 8),
+        new THREE.MeshStandardMaterial({ color: 0xf2ead8, roughness: 0.8 }));
+      rice.scale.y = 0.5;
+      rice.position.y = 0.045;
+      bowl.add(rice);
+      bowl.position.set(0.02, -0.08, 0.1);
+      bowl.visible = false;
+      B["mixamorigLeftForeArm"].add(bowl);
+      props.bowl = bowl;
+
+      var cup = new THREE.Mesh(new THREE.CylinderGeometry(0.055, 0.045, 0.135, 10),
+        new THREE.MeshStandardMaterial({ color: 0xff9a3e, roughness: 0.3 }));
+      cup.position.set(0.02, -0.08, 0.1);
+      cup.visible = false;
+      B["mixamorigRightForeArm"].add(cup);
+      props.cup = cup;
+
+      playerReady = true;
+      var el = document.getElementById("splash");
+    }, function (err) { console.error("Hoshoryu GLB load failed", err); });
   })();
+
+  function setPlayerAction(n) {
+    if (playerCurrentAction === n || !playerActions[n]) return;
+    var prev = playerCurrentAction && playerActions[playerCurrentAction];
+    playerActions[n].reset().fadeIn(0.22).play();
+    if (prev) prev.fadeOut(0.22);
+    playerCurrentAction = n;
+  }
 
   // ==================================================================== NPCS
   var actors = [];
@@ -2945,7 +3021,7 @@
       sumo.position.x = nx;
       sumo.position.z = nz;
     }
-    sumo.rotation.y = facing;
+    sumo.rotation.y = facing + Math.PI; // the GLB model faces -Z at rest
     var gy = groundY(sumo.position.x, sumo.position.z);
     var ty = terrainY(sumo.position.x, sumo.position.z);
     var inWater = !swimming && ty < SEA_LEVEL && !onDohyo(sumo.position.x, sumo.position.z);
@@ -2960,12 +3036,14 @@
     var speedRatio = speedNow / 4.4;
     walkPhase += dt * speedRatio * 1.9;
     walkAmt += ((moving ? 1 : 0) - walkAmt) * Math.min(1, dt * 7);
-    resetPose(rig);
 
+    if (playerReady) {
     if (stomp.t >= 0) {
+      resetPose(rig);
       stomp.t += dt / 1.25;
       var s = stomp.t;
       var lift = poseShiko(rig, Math.min(s, 1), 1);
+      window.__applyPlayerPose();
       if (s > 0.56 && !stompImpactDone) {
         stompImpactDone = true;
         shake = 0.55;
@@ -2983,7 +3061,9 @@
       }
       if (s >= 1) { stomp.t = -1; stompImpactDone = false; }
     } else if (swimming) {
+      resetPose(rig);
       poseSwim(rig, t);
+      window.__applyPlayerPose();
       if (moving) {
         stepAcc += dt * 1.6;
         if (stepAcc > 1) {
@@ -2993,8 +3073,10 @@
         }
       }
     } else if (activity === "dance") {
+      resetPose(rig);
       activityT += dt;
       poseDance(rig, activityT);
+      window.__applyPlayerPose();
       needs.fun = Math.min(100, needs.fun + 2.6 * dt);
       needs.energy = Math.max(0, needs.energy - 0.5 * dt);
       strumTimer -= dt;
@@ -3005,8 +3087,10 @@
         strumN++;
       }
     } else if (activity === "uke") {
+      resetPose(rig);
       activityT += dt;
       poseUke(rig, activityT);
+      window.__applyPlayerPose();
       needs.fun = Math.min(100, needs.fun + 2.6 * dt);
       strumTimer -= dt;
       if (strumTimer <= 0) {
@@ -3015,8 +3099,10 @@
         strumN++;
       }
     } else if (activity === "eat") {
+      resetPose(rig);
       activityT += dt;
       poseEat(rig, activityT);
+      window.__applyPlayerPose();
       if (activityT > 1.4 && activityT - dt <= 1.4) audio.munch();
       if (activityT >= 3.0) {
         if (eatKind === "chanko") { needs.hunger = Math.min(100, needs.hunger + 55); checkTask("chanko"); toast("🍲 Oishii! The oyakata's chanko hits different."); }
@@ -3025,7 +3111,9 @@
         stopActivity();
       }
     } else if (activity === "relax") {
+      resetPose(rig);
       poseLie(rig, t);
+      window.__applyPlayerPose();
       needs.energy = Math.min(100, needs.energy + 6 * dt);
       needs.fun = Math.min(100, needs.fun + 0.6 * dt);
       if (relaxLounger) {
@@ -3035,8 +3123,9 @@
         facing = relaxLounger.ry;
       }
     } else {
-      poseWalk(rig, walkPhase, walkAmt, 0.07 * walkAmt * speedRatio * 0.6, t);
-      if (walkAmt < 0.3) poseBreathe(rig, t);
+      var wantAction = moving ? (run ? "run" : "walk") : "idle";
+      setPlayerAction(wantAction);
+      if (playerMixer) playerMixer.update(dt);
 
       stepAcc += dt * speedRatio * 1.9 * 2;
       if (stepAcc > 1 && walkAmt > 0.5) {
@@ -3054,10 +3143,13 @@
     if (alohaT >= 0) {
       alohaT += dt / 1.1;
       var wv = Math.sin(Math.min(1, alohaT) * Math.PI);
-      rig.armR.sh.rotation.z = -0.62 - 2.2 * wv;
-      rig.armR.el.rotation.x = -0.3 - Math.sin(alohaT * 18) * 0.35 * wv;
+      waveDummySh.rotation.set(0, 0, -0.62 - 2.2 * wv);
+      waveDummyEl.rotation.set(-0.3 - Math.sin(alohaT * 18) * 0.35 * wv, 0, 0);
+      playerBones["mixamorigRightArm"].quaternion.copy(playerRest["mixamorigRightArm"]).multiply(waveDummySh.quaternion);
+      playerBones["mixamorigRightForeArm"].quaternion.copy(playerRest["mixamorigRightForeArm"]).multiply(waveDummyEl.quaternion);
       if (alohaT >= 1) alohaT = -1;
     }
+    } // playerReady
 
     // ---- needs decay
     needs.hunger = Math.max(0, needs.hunger - 0.2 * dt);
@@ -3247,7 +3339,7 @@
     },
     tp: function (x, z, yaw) {
       sumo.position.x = x; sumo.position.z = z;
-      if (yaw !== undefined) { facing = yaw; sumo.rotation.y = yaw; }
+      if (yaw !== undefined) { facing = yaw; sumo.rotation.y = yaw + Math.PI; }
     },
     cam: function (yaw, pitch, dist) {
       camYaw = yaw; camPitch = pitch;
