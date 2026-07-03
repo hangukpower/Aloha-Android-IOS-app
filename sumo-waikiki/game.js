@@ -65,13 +65,13 @@
     document.getElementById("err").style.display = "flex";
     return;
   }
-  renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 1.5));
   renderer.setSize(window.innerWidth, window.innerHeight);
   renderer.outputEncoding = THREE.sRGBEncoding;
   renderer.toneMapping = THREE.ACESFilmicToneMapping;
   renderer.toneMappingExposure = 0.75;
   renderer.shadowMap.enabled = true;
-  renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+  renderer.shadowMap.type = THREE.PCFShadowMap;
 
   var scene = new THREE.Scene();
   scene.fog = new THREE.Fog(0xcfdfe8, 280, 1700);
@@ -203,7 +203,7 @@
 
   var sun = new THREE.DirectionalLight(0xffe2b8, 1.35);
   sun.castShadow = true;
-  sun.shadow.mapSize.set(2048, 2048);
+  sun.shadow.mapSize.set(1536, 1536);
   sun.shadow.camera.near = 10;
   sun.shadow.camera.far = 600;
   sun.shadow.camera.left = -85; sun.shadow.camera.right = 85;
@@ -280,13 +280,13 @@
   })();
 
   var water = new THREE.Water(new THREE.PlaneGeometry(6000, 6000), {
-    textureWidth: 512,
-    textureHeight: 512,
+    textureWidth: 320,
+    textureHeight: 320,
     waterNormals: waterNormals,
     sunDirection: sunDir.clone(),
     sunColor: 0xffe0b0,
     waterColor: 0x14829c,
-    distortionScale: 3.0,
+    distortionScale: 3.4,
     fog: true
   });
   water.rotation.x = -Math.PI / 2;
@@ -457,23 +457,104 @@
 
   // the beach: sloping sand with a wet band at the waterline
   (function () {
-    var W = new WorldCanvas(2048, 512, -260, SHORE_Z, 260, 130);
+    var W = new WorldCanvas(3072, 768, -260, SHORE_Z, 260, 130);
     var ctx = W.ctx;
     ctx.fillStyle = "#e6d3a3";
-    ctx.fillRect(0, 0, 2048, 512);
-    speckle(ctx, 2048, 512, 30000, ["#dcc793", "#f0e0b5", "#cdb887", "#f6ead0"], 0.6, 2.2);
+    ctx.fillRect(0, 0, 3072, 768);
+    speckle(ctx, 3072, 768, 46000, ["#dcc793", "#f0e0b5", "#cdb887", "#f6ead0"], 0.7, 2.6);
     var g = ctx.createLinearGradient(0, W.pz(WATERLINE_Z - 9), 0, W.pz(WATERLINE_Z + 14));
     g.addColorStop(0, "rgba(140,110,70,0)");
     g.addColorStop(0.45, "rgba(120,95,62,0.55)");
     g.addColorStop(1, "rgba(105,86,58,0.75)");
     ctx.fillStyle = g;
-    ctx.fillRect(0, W.pz(WATERLINE_Z - 9), 2048, W.pz(130) - W.pz(WATERLINE_Z - 9));
-    speckle(ctx, 2048, 512, 4000, ["#00000018", "#ffffff10"], 0.6, 1.6);
+    ctx.fillRect(0, W.pz(WATERLINE_Z - 9), 3072, W.pz(130) - W.pz(WATERLINE_Z - 9));
+    speckle(ctx, 3072, 768, 6000, ["#00000018", "#ffffff10"], 0.6, 1.8);
+
+    // wet-sand sheen: a grayscale roughness map sharing the same UVs, so the
+    // strip near the waterline reads glossy/damp instead of flat matte sand
+    var rW = new WorldCanvas(768, 192, -260, SHORE_Z, 260, 130);
+    var rctx = rW.ctx;
+    rctx.fillStyle = "#f0f0f0";
+    rctx.fillRect(0, 0, 768, 192);
+    var rg = rctx.createLinearGradient(0, rW.pz(WATERLINE_Z - 9), 0, rW.pz(WATERLINE_Z + 12));
+    rg.addColorStop(0, "#f0f0f0");
+    rg.addColorStop(0.55, "#5c5c5c");
+    rg.addColorStop(1, "#3a3a3a");
+    rctx.fillStyle = rg;
+    rctx.fillRect(0, rW.pz(WATERLINE_Z - 9), 768, rW.pz(130) - rW.pz(WATERLINE_Z - 9));
+
+    // fine tileable grain normal map (independent high-frequency repeat)
+    var grainTex = (function () {
+      var N = 128, h = new Float32Array(N * N), comps = [];
+      for (var k = 0; k < 5; k++) {
+        comps.push({ fx: 3 + ((Math.random() * 9) | 0), fy: 3 + ((Math.random() * 9) | 0), ph: Math.random() * 6.283 });
+      }
+      var x, y;
+      for (y = 0; y < N; y++) for (x = 0; x < N; x++) {
+        var v = 0;
+        for (var c = 0; c < comps.length; c++) {
+          var cc = comps[c];
+          v += Math.sin((cc.fx * x + cc.fy * y) * 6.283 / N + cc.ph) / comps.length;
+        }
+        v += (Math.random() - 0.5) * 0.5;
+        h[y * N + x] = v;
+      }
+      var cv = document.createElement("canvas");
+      cv.width = N; cv.height = N;
+      var cx2 = cv.getContext("2d");
+      var img = cx2.createImageData(N, N);
+      var s = 1.4;
+      for (y = 0; y < N; y++) for (x = 0; x < N; x++) {
+        var xp = (x + 1) % N, xm = (x + N - 1) % N, yp = (y + 1) % N, ym = (y + N - 1) % N;
+        var dx = (h[y * N + xp] - h[y * N + xm]) * s, dy = (h[yp * N + x] - h[ym * N + x]) * s;
+        var inv = 1 / Math.sqrt(dx * dx + dy * dy + 1);
+        var i = (y * N + x) * 4;
+        img.data[i] = (-dx * inv * 0.5 + 0.5) * 255;
+        img.data[i + 1] = (-dy * inv * 0.5 + 0.5) * 255;
+        img.data[i + 2] = (inv * 0.5 + 0.5) * 255;
+        img.data[i + 3] = 255;
+      }
+      cx2.putImageData(img, 0, 0);
+      var t = new THREE.CanvasTexture(cv);
+      t.wrapS = t.wrapT = THREE.RepeatWrapping;
+      t.repeat.set(70, 16);
+      return t;
+    })();
 
     var geo = worldPlane(-260, SHORE_Z, 260, 130, 150, 46, terrainY);
-    var mesh = new THREE.Mesh(geo, new THREE.MeshStandardMaterial({ map: W.texture(), roughness: 1 }));
+    var mat = new THREE.MeshStandardMaterial({
+      map: W.texture(), roughnessMap: rW.texture(), roughness: 1,
+      normalMap: grainTex, normalScale: new THREE.Vector2(0.5, 0.5)
+    });
+    var mesh = new THREE.Mesh(geo, mat);
     mesh.receiveShadow = true;
     scene.add(mesh);
+
+    // a scatter of shells and pebbles along the wet sand — cheap shared geometry
+    (function () {
+      var shellGeo = new THREE.ConeGeometry(0.06, 0.03, 7, 1, true);
+      var pebbleGeo = new THREE.DodecahedronGeometry(0.045, 0);
+      var shellMat = new THREE.MeshStandardMaterial({ color: 0xf2e4c8, roughness: 0.55 });
+      var pebbleMats = [
+        new THREE.MeshStandardMaterial({ color: 0x8a7a68, roughness: 0.8 }),
+        new THREE.MeshStandardMaterial({ color: 0x5c5248, roughness: 0.85 }),
+        new THREE.MeshStandardMaterial({ color: 0xb8a888, roughness: 0.75 })
+      ];
+      for (var i = 0; i < 46; i++) {
+        var x = -110 + Math.random() * 220;
+        var z = WATERLINE_Z - 10 + Math.random() * 20;
+        var isShell = Math.random() < 0.4;
+        var m = new THREE.Mesh(isShell ? shellGeo : pebbleGeo,
+          isShell ? shellMat : pebbleMats[(Math.random() * 3) | 0]);
+        m.position.set(x, terrainY(x, z) + 0.01, z);
+        m.rotation.set(Math.random() * 0.6, Math.random() * 6.283, Math.random() * 0.6);
+        var sc = 0.7 + Math.random() * 1.1;
+        m.scale.set(sc, sc * (isShell ? 0.6 : 1), sc);
+        m.castShadow = false;
+        m.receiveShadow = true;
+        scene.add(m);
+      }
+    })();
   })();
 
   // ------------------------------------------------------------ Diamond Head
@@ -1293,6 +1374,7 @@
     rig.bellyBase = belly.scale.clone();
     if (isRikishi) {
       var navel = orb(skinD, 0.05, 1, 1.4, 0.5);
+      navel.castShadow = false; // tiny detail, not worth a shadow-pass draw call
       navel.position.set(0, 0.32, 0.78 * bellyF);
       torso.add(navel);
     }
@@ -1304,6 +1386,7 @@
     rig.chestBase = chest.scale.clone();
     if (isRikishi) {
       var pecL = orb(skin, 0.27, 1.1, 0.9, 0.62);
+      pecL.castShadow = false;
       pecL.position.set(-0.28, 1.06, 0.44);
       torso.add(pecL);
       var pecR = pecL.clone();
@@ -1389,6 +1472,7 @@
         var a2 = (li / 26) * 6.283;
         var fl = orb(new THREE.MeshStandardMaterial({ color: leiCols[li % 4], roughness: 0.75 }),
           0.085 + Math.random() * 0.03);
+        fl.castShadow = false; // 26 tiny flowers per lei — skip the shadow pass
         fl.position.set(Math.sin(a2) * 0.56, Math.cos(a2) * 0.34, Math.cos(a2) * 0.28);
         leiG.add(fl);
       }
@@ -1411,6 +1495,7 @@
       headP.add(jowls);
     }
     var earL = orb(skin, 0.09);
+    earL.castShadow = false;
     earL.position.set(-0.38, 0.12, 0.02);
     headP.add(earL);
     var earR = earL.clone();
@@ -1462,9 +1547,11 @@
       var pupilMat = new THREE.MeshStandardMaterial({ color: 0x1a130e, roughness: 0.25 });
       [-0.15, 0.15].forEach(function (ex) {
         var eye = orb(eyeMat, 0.055, 1, 1, 0.5);
+        eye.castShadow = false;
         eye.position.set(ex, 0.15, 0.35);
         headP.add(eye);
         var pupil = orb(pupilMat, 0.028, 1, 1, 0.6);
+        pupil.castShadow = false;
         pupil.position.set(ex, 0.15, 0.385);
         headP.add(pupil);
       });
