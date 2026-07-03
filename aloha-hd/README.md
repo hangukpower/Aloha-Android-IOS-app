@@ -32,9 +32,9 @@ auto-detects and loops it.
 2. **Animation — world-space constraint retargeting** (`src/gen_anims.py`):
    the three.js Soldier's mocap Idle/Walk/Run clips are baked bone-by-bone
    onto the sumo rig with visual keying, then exported inside the GLB.
-3. **Rendering — three.js r160**: bright tropical-sky atmosphere shader
-   driving both the backdrop and the image-based lighting (PMREM), trade-wind
-   cumulus, ACES tone mapping, PCF soft shadows, reflective
+3. **Rendering — three.js r160**: photographic tropical skybox (real clouds)
+   driving image-based lighting via PMREM, N8AO ambient occlusion, 4K
+   shadows, Diamond Head heightfield across the bay, ACES tone mapping, PCF soft shadows, reflective
    ocean (`Water` + real normal map), PBR grass texture, procedural palms,
    torches with real point lights, UnrealBloom + SMAA post-processing.
 4. Bundled with esbuild; assets embedded as base64 so `file://` just works.

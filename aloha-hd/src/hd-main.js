@@ -4,14 +4,14 @@
    bloom + SMAA post. Bundled fully self-contained (assets are base64). */
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
-import { Sky } from 'three/examples/jsm/objects/Sky.js';
+import { N8AOPass } from 'n8ao';
 import { Water } from 'three/examples/jsm/objects/Water.js';
 import { EffectComposer } from 'three/examples/jsm/postprocessing/EffectComposer.js';
 import { RenderPass } from 'three/examples/jsm/postprocessing/RenderPass.js';
 import { UnrealBloomPass } from 'three/examples/jsm/postprocessing/UnrealBloomPass.js';
 import { SMAAPass } from 'three/examples/jsm/postprocessing/SMAAPass.js';
 import { OutputPass } from 'three/examples/jsm/postprocessing/OutputPass.js';
-import { SUMO_GLB, TEX_WATERNORMALS, TEX_GRASS } from './hd-assets.js';
+import { SUMO_GLB, TEX_WATERNORMALS, TEX_GRASS, SKY_FACES } from './hd-assets.js';
 
 const canvas = document.getElementById('c');
 const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, powerPreference: 'high-performance' });
@@ -28,6 +28,12 @@ const camera = new THREE.PerspectiveCamera(55, innerWidth / innerHeight, 0.25, 5
 
 const composer = new EffectComposer(renderer);
 composer.addPass(new RenderPass(scene, camera));
+const n8ao = new N8AOPass(scene, camera, innerWidth, innerHeight);
+n8ao.configuration.aoRadius = 1.4;
+n8ao.configuration.distanceFalloff = 3.0;
+n8ao.configuration.intensity = 3.5;
+n8ao.setQualityMode('Medium');
+composer.addPass(n8ao);
 const bloom = new UnrealBloomPass(new THREE.Vector2(innerWidth, innerHeight), 0.15, 0.7, 0.95);
 composer.addPass(bloom);
 const smaa = new SMAAPass(innerWidth, innerHeight);
@@ -50,61 +56,21 @@ const groundY = (x, z) => beachY(z);
 const sunDir = new THREE.Vector3(-0.78, 0.6, 0.2).normalize();
 const sun = new THREE.DirectionalLight(0xfff2dd, 2.2);
 sun.castShadow = true;
-sun.shadow.mapSize.set(2048, 2048);
+sun.shadow.mapSize.set(4096, 4096);
 sun.shadow.camera.near = 5; sun.shadow.camera.far = 300;
-sun.shadow.camera.left = -30; sun.shadow.camera.right = 30;
-sun.shadow.camera.top = 40; sun.shadow.camera.bottom = -30;
+sun.shadow.camera.left = -24; sun.shadow.camera.right = 24;
+sun.shadow.camera.top = 32; sun.shadow.camera.bottom = -24;
 sun.shadow.bias = -0.0004;
 scene.add(sun, sun.target);
 
-// bright tropical sky: atmosphere shader drives both backdrop and IBL
-const sky = new Sky();
-sky.scale.setScalar(4000);
-const skyU = sky.material.uniforms;
-skyU.turbidity.value = 2.0;
-skyU.rayleigh.value = 1.35;
-skyU.mieCoefficient.value = 0.002;
-skyU.mieDirectionalG.value = 0.8;
-skyU.sunPosition.value.copy(sunDir);
+// photographic tropical sky: cubemap backdrop + PMREM image-based lighting
 {
-  const pmrem = new THREE.PMREMGenerator(renderer);
-  const envScene = new THREE.Scene();
-  envScene.add(sky);
-  scene.environment = pmrem.fromScene(envScene).texture;
-  scene.add(sky); // re-attach as the visible backdrop
-}
-// trade-wind cumulus
-{
-  const cv = document.createElement('canvas'); cv.width = 256; cv.height = 128;
-  const cx = cv.getContext('2d');
-  const baseY = 92;
-  for (let i = 0; i < 30; i++) {
-    const x = 128 + (Math.random() - 0.5) * 180;
-    const r = 12 + Math.random() * 24;
-    let y = baseY - Math.abs(Math.random() - 0.5) * 66 - r * 0.3;
-    if (y > baseY - r * 0.4) y = baseY - r * 0.4;
-    const g = cx.createRadialGradient(x, y, 1, x, y, r);
-    g.addColorStop(0, 'rgba(255,253,248,0.78)');
-    g.addColorStop(0.8, 'rgba(252,248,240,0.28)');
-    g.addColorStop(1, 'rgba(252,248,240,0)');
-    cx.fillStyle = g;
-    cx.fillRect(0, 0, 256, 128);
-  }
-  cx.clearRect(0, baseY + 6, 256, 128 - baseY - 6);
-  const tex = new THREE.CanvasTexture(cv);
-  window.__clouds = [];
-  for (let i = 0; i < 12; i++) {
-    const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex, transparent: true, depthWrite: false, fog: false }));
-    sp.material.toneMapped = false;
-    sp.material.opacity = 0.5 + Math.random() * 0.22;
-    const a = Math.random() * 6.283, d = 900 + Math.random() * 500;
-    sp.position.set(Math.cos(a) * d, 150 + Math.random() * 160, Math.sin(a) * d);
-    const sc = 220 + Math.random() * 170;
-    sp.scale.set(sc, sc * 0.5, 1);
-    sp.userData.v = 1 + Math.random() * 1.5;
-    scene.add(sp);
-    window.__clouds.push(sp);
-  }
+  const cube = new THREE.CubeTextureLoader().load(SKY_FACES, t => {
+    t.colorSpace = THREE.SRGBColorSpace;
+    scene.background = t;
+    const pmrem = new THREE.PMREMGenerator(renderer);
+    scene.environment = pmrem.fromCubemap(t).texture;
+  });
 }
 
 // ocean
@@ -225,6 +191,56 @@ function speck(cx, w, h, n, cols) {
   path.position.z = SHORE_Z - 32;
   path.receiveShadow = true;
   scene.add(path);
+}
+
+// Diamond Head across the bay
+{
+  const mcv = document.createElement('canvas'); mcv.width = mcv.height = 512;
+  const mx = mcv.getContext('2d');
+  mx.fillStyle = '#8b8058'; mx.fillRect(0, 0, 512, 512);
+  speck(mx, 512, 512, 9000, ['#6d7a45', '#7d7048', '#98865e', '#5c6b3c', '#a3906a']);
+  for (let i = 0; i < 240; i++) {
+    const x = Math.random() * 512;
+    mx.strokeStyle = `rgba(70,60,40,${0.1 + Math.random() * 0.22})`;
+    mx.lineWidth = 1 + Math.random() * 2;
+    mx.beginPath(); mx.moveTo(x, Math.random() * 200); mx.lineTo(x + (Math.random() - 0.5) * 40, 512); mx.stroke();
+  }
+  const mot = new THREE.CanvasTexture(mcv);
+  mot.wrapS = mot.wrapT = THREE.RepeatWrapping; mot.repeat.set(3, 3);
+  mot.colorSpace = THREE.SRGBColorSpace;
+  const seg = 96, geo = new THREE.PlaneGeometry(1, 1, seg, seg);
+  const pos = geo.attributes.position;
+  const colors = new Float32Array(pos.count * 3);
+  const lowC = new THREE.Color(0x6a7a48), midC = new THREE.Color(0x93875c), hiC = new THREE.Color(0xa89468);
+  const sm = (a, b, x) => { const t = Math.max(0, Math.min(1, (x - a) / (b - a))); return t * t * (3 - 2 * t); };
+  const maxH = 150;
+  for (let i = 0; i < pos.count; i++) {
+    const u = pos.getX(i) * 2, v = pos.getY(i) * 2;
+    let ridge = 0.14 * sm(-1.0, -0.55, u) + 0.38 * sm(-0.75, -0.2, u) + 0.48 * sm(-0.05, 0.32, u);
+    ridge *= 1 - sm(0.42, 0.85, u) * 0.96;
+    const width = 0.55 + 0.25 * (1 - (u + 1) / 2);
+    let hgt = maxH * ridge * Math.exp(-(v * v) / (2 * width * width));
+    hgt -= maxH * 0.22 * Math.exp(-((u + 0.15) ** 2) / 0.18 - ((v + 0.55) ** 2) / 0.1);
+    hgt = Math.max(0, hgt);
+    hgt *= 1 + 0.032 * Math.sin(u * 40 + v * 31) + 0.05 * Math.sin(u * 13 + 2) + 0.025 * Math.sin(u * 90 - v * 70);
+    const t2 = Math.min(1, hgt / maxH * 1.5);
+    const c = t2 < 0.5 ? lowC.clone().lerp(midC, t2 * 2) : midC.clone().lerp(hiC, (t2 - 0.5) * 2);
+    const j = 0.94 + Math.random() * 0.12;
+    colors[i * 3] = c.r * j; colors[i * 3 + 1] = c.g * j; colors[i * 3 + 2] = c.b * j;
+    pos.setXYZ(i, pos.getX(i) * 880, pos.getY(i) * 620, hgt);
+  }
+  geo.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+  geo.computeVertexNormals();
+  const dh = new THREE.Mesh(geo, new THREE.MeshStandardMaterial({ vertexColors: true, map: mot, roughness: 1 }));
+  dh.rotation.x = -Math.PI / 2;
+  dh.rotation.z = 0.55;
+  dh.position.set(880, -1, 330);
+  scene.add(dh);
+  const base = new THREE.Mesh(new THREE.CircleGeometry(430, 40),
+    new THREE.MeshStandardMaterial({ color: 0x55663a, roughness: 1 }));
+  base.rotation.x = -Math.PI / 2;
+  base.position.set(870, -0.42, 310);
+  scene.add(base);
 }
 
 // palms (procedural, lit by the HDRI)
