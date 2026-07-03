@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ALOHA SUMO — choose your game</title>
+<style>
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body { min-height:100vh; display:flex; flex-direction:column; align-items:center;
+    justify-content:center; gap:28px; padding:40px 20px;
+    background:linear-gradient(180deg,#0b2a4a 0%,#0e4a6e 55%,#0d6a80 100%);
+    font-family:"Avenir Next","Segoe UI",sans-serif; color:#fff; }
+  h1 { font-size:clamp(34px,6vw,64px); font-weight:900; letter-spacing:3px;
+    background:linear-gradient(180deg,#ffe29a,#ff9a56 55%,#ff5e8a);
+    -webkit-background-clip:text; background-clip:text; -webkit-text-fill-color:transparent; }
+  p.sub { color:#bfe0f0; letter-spacing:2px; margin-top:-16px; }
+  .cards { display:flex; gap:24px; flex-wrap:wrap; justify-content:center; }
+  a.card { display:block; width:340px; text-decoration:none; color:#fff;
+    background:rgba(255,255,255,.08); border:1px solid rgba(255,255,255,.22);
+    border-radius:20px; padding:26px 26px 22px; transition:transform .15s, background .15s; }
+  a.card:hover { transform:translateY(-4px); background:rgba(255,255,255,.14); }
+  .card h2 { font-size:22px; margin-bottom:8px; }
+  .card .tag { display:inline-block; font-size:11px; font-weight:700; letter-spacing:1.5px;
+    padding:4px 10px; border-radius:999px; margin-bottom:12px; }
+  .hd .tag { background:#ff5e8a; }
+  .sim .tag { background:#2a9d8f; }
+  .card p { font-size:13.5px; line-height:1.65; color:#d8ecf8; }
+  .card .go { margin-top:14px; font-weight:800; color:#ffd166; font-size:14px; }
+</style>
+</head>
+<body>
+  <h1>ALOHA SUMO</h1>
+  <p class="sub">TWO GAMES · ONE RESORT · PICK YOUR VIBE</p>
+  <div class="cards">
+    <a class="card hd" href="aloha-hd/index.html">
+      <span class="tag">HD · REALISTIC</span>
+      <h2>🌈 Hōshōryū at the Village</h2>
+      <p>The Blender-built realistic yokozuna with mocap walk/run, photographic sky,
+      Rainbow Tower, lagoon, breakwater and Diamond Head. WASD to walk, F for
+      fireworks, M for music.</p>
+      <div class="go">▶ PLAY HD</div>
+    </a>
+    <a class="card sim" href="sumo-waikiki/index.html">
+      <span class="tag">LIFE-SIM · STYLIZED</span>
+      <h2>🥋 A Yokozuna's Vacation</h2>
+      <p>The full sumo life-sim: beach dohyō practice with the makuuchi and
+      Futagoyama-beya, swimming, chanko, hula, ukulele, needs bars and the
+      vacation checklist.</p>
+      <div class="go">▶ PLAY LIFE-SIM</div>
+    </a>
+  </div>
+</body>
+</html>
