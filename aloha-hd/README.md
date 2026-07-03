@@ -13,7 +13,12 @@ at golden hour.
 
 Open `aloha-hd/index.html` in any modern browser. Fully self-contained —
 the character, HDRI and textures are embedded in `bundle.js` (~14 MB).
-**WASD** walk · **SHIFT** run · **drag** look · **scroll** zoom.
+**WASD** walk · **SHIFT** run · **drag** look · **scroll** zoom · **M** music.
+
+**Music:** an original slack-key-style island instrumental plays by default
+(synthesized live — any key starts it). To hear *Waimanalo Blues* instead,
+drop a file you own named `waimanalo-blues.mp3` into this folder — the game
+auto-detects and loops it.
 
 ## 🔬 How it was made (the actual pipeline)
 
@@ -27,9 +32,9 @@ the character, HDRI and textures are embedded in `bundle.js` (~14 MB).
 2. **Animation — world-space constraint retargeting** (`src/gen_anims.py`):
    the three.js Soldier's mocap Idle/Walk/Run clips are baked bone-by-bone
    onto the sumo rig with visual keying, then exported inside the GLB.
-3. **Rendering — three.js r160**: HDRI image-based lighting *and*
-   photographic sky (`blouberg_sunrise` — real sunrise clouds and coastal
-   skyline on the horizon), ACES tone mapping, PCF soft shadows, reflective
+3. **Rendering — three.js r160**: bright tropical-sky atmosphere shader
+   driving both the backdrop and the image-based lighting (PMREM), trade-wind
+   cumulus, ACES tone mapping, PCF soft shadows, reflective
    ocean (`Water` + real normal map), PBR grass texture, procedural palms,
    torches with real point lights, UnrealBloom + SMAA post-processing.
 4. Bundled with esbuild; assets embedded as base64 so `file://` just works.

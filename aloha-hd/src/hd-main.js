@@ -4,31 +4,31 @@
    bloom + SMAA post. Bundled fully self-contained (assets are base64). */
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
-import { RGBELoader } from 'three/examples/jsm/loaders/RGBELoader.js';
+import { Sky } from 'three/examples/jsm/objects/Sky.js';
 import { Water } from 'three/examples/jsm/objects/Water.js';
 import { EffectComposer } from 'three/examples/jsm/postprocessing/EffectComposer.js';
 import { RenderPass } from 'three/examples/jsm/postprocessing/RenderPass.js';
 import { UnrealBloomPass } from 'three/examples/jsm/postprocessing/UnrealBloomPass.js';
 import { SMAAPass } from 'three/examples/jsm/postprocessing/SMAAPass.js';
 import { OutputPass } from 'three/examples/jsm/postprocessing/OutputPass.js';
-import { SUMO_GLB, HDR_BEACH, TEX_WATERNORMALS, TEX_GRASS } from './hd-assets.js';
+import { SUMO_GLB, TEX_WATERNORMALS, TEX_GRASS } from './hd-assets.js';
 
 const canvas = document.getElementById('c');
 const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, powerPreference: 'high-performance' });
 renderer.setPixelRatio(Math.min(devicePixelRatio || 1, 2));
 renderer.setSize(innerWidth, innerHeight);
 renderer.toneMapping = THREE.ACESFilmicToneMapping;
-renderer.toneMappingExposure = 1.05;
+renderer.toneMappingExposure = 0.55;
 renderer.shadowMap.enabled = true;
 renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 
 const scene = new THREE.Scene();
-scene.fog = new THREE.Fog(0xcfdde6, 220, 1400);
+scene.fog = new THREE.Fog(0xd8ecf8, 420, 2800);
 const camera = new THREE.PerspectiveCamera(55, innerWidth / innerHeight, 0.25, 5000);
 
 const composer = new EffectComposer(renderer);
 composer.addPass(new RenderPass(scene, camera));
-const bloom = new UnrealBloomPass(new THREE.Vector2(innerWidth, innerHeight), 0.18, 0.7, 0.92);
+const bloom = new UnrealBloomPass(new THREE.Vector2(innerWidth, innerHeight), 0.15, 0.7, 0.95);
 composer.addPass(bloom);
 const smaa = new SMAAPass(innerWidth, innerHeight);
 composer.addPass(smaa);
@@ -47,8 +47,8 @@ const beachY = z => z <= SHORE_Z ? 0 : -0.028 * (z - SHORE_Z) * (z - SHORE_Z) / 
 const groundY = (x, z) => beachY(z);
 
 // sun matched to the HDRI sunrise over the water
-const sunDir = new THREE.Vector3(-0.55, 0.42, 0.72).normalize();
-const sun = new THREE.DirectionalLight(0xffe6c0, 3.2);
+const sunDir = new THREE.Vector3(-0.78, 0.6, 0.2).normalize();
+const sun = new THREE.DirectionalLight(0xfff2dd, 2.2);
 sun.castShadow = true;
 sun.shadow.mapSize.set(2048, 2048);
 sun.shadow.camera.near = 5; sun.shadow.camera.far = 300;
@@ -57,16 +57,55 @@ sun.shadow.camera.top = 40; sun.shadow.camera.bottom = -30;
 sun.shadow.bias = -0.0004;
 scene.add(sun, sun.target);
 
-// HDRI: image-based lighting + photographic sky
-new RGBELoader().load(HDR_BEACH, tex => {
-  tex.mapping = THREE.EquirectangularReflectionMapping;
-  scene.environment = tex;
-  scene.background = tex;
-  scene.backgroundRotation = new THREE.Euler(0, 2.0, 0);
-  scene.environmentRotation = new THREE.Euler(0, 2.0, 0);
-  scene.environmentIntensity = 1.0;
-  scene.backgroundIntensity = 1.0;
-});
+// bright tropical sky: atmosphere shader drives both backdrop and IBL
+const sky = new Sky();
+sky.scale.setScalar(4000);
+const skyU = sky.material.uniforms;
+skyU.turbidity.value = 2.0;
+skyU.rayleigh.value = 1.35;
+skyU.mieCoefficient.value = 0.002;
+skyU.mieDirectionalG.value = 0.8;
+skyU.sunPosition.value.copy(sunDir);
+{
+  const pmrem = new THREE.PMREMGenerator(renderer);
+  const envScene = new THREE.Scene();
+  envScene.add(sky);
+  scene.environment = pmrem.fromScene(envScene).texture;
+  scene.add(sky); // re-attach as the visible backdrop
+}
+// trade-wind cumulus
+{
+  const cv = document.createElement('canvas'); cv.width = 256; cv.height = 128;
+  const cx = cv.getContext('2d');
+  const baseY = 92;
+  for (let i = 0; i < 30; i++) {
+    const x = 128 + (Math.random() - 0.5) * 180;
+    const r = 12 + Math.random() * 24;
+    let y = baseY - Math.abs(Math.random() - 0.5) * 66 - r * 0.3;
+    if (y > baseY - r * 0.4) y = baseY - r * 0.4;
+    const g = cx.createRadialGradient(x, y, 1, x, y, r);
+    g.addColorStop(0, 'rgba(255,253,248,0.78)');
+    g.addColorStop(0.8, 'rgba(252,248,240,0.28)');
+    g.addColorStop(1, 'rgba(252,248,240,0)');
+    cx.fillStyle = g;
+    cx.fillRect(0, 0, 256, 128);
+  }
+  cx.clearRect(0, baseY + 6, 256, 128 - baseY - 6);
+  const tex = new THREE.CanvasTexture(cv);
+  window.__clouds = [];
+  for (let i = 0; i < 12; i++) {
+    const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex, transparent: true, depthWrite: false, fog: false }));
+    sp.material.toneMapped = false;
+    sp.material.opacity = 0.5 + Math.random() * 0.22;
+    const a = Math.random() * 6.283, d = 900 + Math.random() * 500;
+    sp.position.set(Math.cos(a) * d, 150 + Math.random() * 160, Math.sin(a) * d);
+    const sc = 220 + Math.random() * 170;
+    sp.scale.set(sc, sc * 0.5, 1);
+    sp.userData.v = 1 + Math.random() * 1.5;
+    scene.add(sp);
+    window.__clouds.push(sp);
+  }
+}
 
 // ocean
 const water = new Water(new THREE.PlaneGeometry(6000, 6000), {
@@ -76,13 +115,13 @@ const water = new Water(new THREE.PlaneGeometry(6000, 6000), {
   }),
   sunDirection: sunDir.clone(),
   sunColor: 0xfff0d8,
-  waterColor: 0x0a5a70,
-  distortionScale: 2.8,
+  waterColor: 0x086478,
+  distortionScale: 1.6,
   fog: true,
 });
 water.rotation.x = -Math.PI / 2;
 water.position.y = SEA_Y;
-water.material.uniforms.size.value = 5;
+water.material.uniforms.size.value = 3;
 scene.add(water);
 
 // turquoise shallows overlay
@@ -99,6 +138,20 @@ scene.add(water);
   m.rotation.x = -Math.PI / 2;
   m.position.set(0, SEA_Y + 0.04, 62);
   scene.add(m);
+  // deep Pacific blue running to the horizon
+  const cv2 = document.createElement('canvas'); cv2.width = 16; cv2.height = 256;
+  const cx2 = cv2.getContext('2d');
+  const g2 = cx2.createLinearGradient(0, 0, 0, 256);
+  g2.addColorStop(0, 'rgba(20,140,160,0.05)');
+  g2.addColorStop(0.08, 'rgba(16,110,142,0.55)');
+  g2.addColorStop(0.45, 'rgba(11,78,124,0.65)');
+  g2.addColorStop(1, 'rgba(9,62,108,0.45)');
+  cx2.fillStyle = g2; cx2.fillRect(0, 0, 16, 256);
+  const deep = new THREE.Mesh(new THREE.PlaneGeometry(3000, 620),
+    new THREE.MeshBasicMaterial({ map: new THREE.CanvasTexture(cv2), transparent: true, depthWrite: false, fog: true }));
+  deep.rotation.x = -Math.PI / 2;
+  deep.position.set(0, SEA_Y + 0.03, 58 + 310);
+  scene.add(deep);
 }
 
 // sand
@@ -436,11 +489,16 @@ function animate() {
     sun.target.position.copy(sumo.position);
   }
   if (mixer) mixer.update(dt);
+  if (window.__music) window.__music.update(dt);
 
   water.material.uniforms.time.value += dt * 0.5;
   for (const p of palms) {
     p.userData.cr.rotation.x = Math.sin(t * 1.1 + p.userData.ph) * 0.03;
     p.userData.cr.rotation.z = Math.cos(t * 0.9 + p.userData.ph) * 0.04;
+  }
+  for (const c of (window.__clouds || [])) {
+    c.position.x += c.userData.v * dt;
+    if (c.position.x > 1500) c.position.x = -1500;
   }
   for (const to of (window.__torches || [])) {
     const f = 0.8 + 0.28 * Math.sin(t * 13 + to.ph) + 0.16 * Math.sin(t * 29 + to.ph * 2);
@@ -451,6 +509,87 @@ function animate() {
   composer.render();
 }
 animate();
+
+// ------------------------------------------------------------------ music
+// Drop a file named waimanalo-blues.mp3 next to index.html and it will play.
+// Otherwise an original slack-key-style island instrumental is synthesized.
+const music = {
+  started: false, muted: false, el: null, ctx: null, gain: null, timer: 0, step: 0,
+  start() {
+    if (this.started) return;
+    this.started = true;
+    const el = new Audio('waimanalo-blues.mp3');
+    el.loop = true; el.volume = 0.55;
+    el.play().then(() => { this.el = el; }).catch(() => this.synth());
+    el.onerror = () => { if (!this.ctx) this.synth(); };
+  },
+  synth() {
+    const AC = window.AudioContext || window.webkitAudioContext;
+    if (!AC) return;
+    this.ctx = new AC();
+    this.gain = this.ctx.createGain();
+    this.gain.gain.value = 0.5;
+    this.gain.connect(this.ctx.destination);
+  },
+  pluck(f, t0, vel, slide) {
+    const ctx = this.ctx, o = ctx.createOscillator(), g = ctx.createGain(), fl = ctx.createBiquadFilter();
+    o.type = 'triangle';
+    if (slide) { o.frequency.setValueAtTime(f * 0.94, t0); o.frequency.exponentialRampToValueAtTime(f, t0 + 0.12); }
+    else o.frequency.value = f;
+    fl.type = 'lowpass';
+    fl.frequency.setValueAtTime(2400, t0);
+    fl.frequency.exponentialRampToValueAtTime(650, t0 + 0.7);
+    g.gain.setValueAtTime(0, t0);
+    g.gain.linearRampToValueAtTime(vel, t0 + 0.014);
+    g.gain.exponentialRampToValueAtTime(0.001, t0 + 1.3);
+    o.connect(fl); fl.connect(g); g.connect(this.gain);
+    o.start(t0); o.stop(t0 + 1.4);
+  },
+  bass(f, t0, dur) {
+    const ctx = this.ctx, o = ctx.createOscillator(), g = ctx.createGain();
+    o.type = 'sine'; o.frequency.value = f;
+    g.gain.setValueAtTime(0, t0);
+    g.gain.linearRampToValueAtTime(0.16, t0 + 0.02);
+    g.gain.exponentialRampToValueAtTime(0.001, t0 + dur);
+    o.connect(g); g.connect(this.gain);
+    o.start(t0); o.stop(t0 + dur + 0.05);
+  },
+  update(dt) {
+    if (!this.ctx || this.muted) return;
+    this.timer -= dt;
+    if (this.timer > 0) return;
+    // laid-back island progression: C - Am - F - G7, finger-picked
+    const C = [261.6, 329.6, 392.0, 523.3], Am = [220.0, 261.6, 329.6, 440.0];
+    const F = [174.6, 261.6, 349.2, 440.0], G7 = [196.0, 246.9, 392.0, 493.9];
+    const prog = [[C, 130.8], [Am, 110.0], [F, 87.3], [G7, 98.0]];
+    const beat = 0.79;                      // ~76 bpm
+    const bar = this.step % 4, chord = prog[((this.step / 4) | 0) % 4];
+    const t0 = this.ctx.currentTime + 0.03;
+    if (bar === 0) this.bass(chord[1], t0, beat * 2);
+    if (bar === 2) this.bass(chord[1] * 1.5, t0, beat * 1.4);
+    const notes = chord[0];
+    const pick = [0, 2, 1, 3][bar];
+    this.pluck(notes[pick], t0, 0.075, false);
+    if (bar === 1) this.pluck(notes[3] * 1.0, t0 + beat * 0.5, 0.05, true);   // steel-ish slide
+    if (bar === 3 && ((this.step / 4) | 0) % 4 === 3)
+      this.pluck(notes[2] * 2, t0 + beat * 0.5, 0.045, true);
+    this.step++;
+    this.timer = beat;
+  },
+  toggle() {
+    this.muted = !this.muted;
+    if (this.el) this.el.muted = this.muted;
+    if (this.gain) this.gain.gain.value = this.muted ? 0 : 0.5;
+    return this.muted;
+  },
+};
+window.__music = music;
+addEventListener('keydown', e => {
+  music.start();
+  if (e.code === 'KeyM') music.toggle();
+});
+addEventListener('mousedown', () => music.start());
+addEventListener('touchstart', () => music.start());
 
 // debug hooks
 window.__game = {
