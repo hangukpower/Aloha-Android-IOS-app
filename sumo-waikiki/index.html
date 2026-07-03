@@ -3,15 +3,15 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-<title>ALOHA SUMO — Waikiki Village Resort</title>
+<title>ALOHA SUMO — A Yokozuna's Vacation</title>
 <style>
   * { margin: 0; padding: 0; box-sizing: border-box; }
   html, body { width: 100%; height: 100%; overflow: hidden; background: #0a1a2a; }
   body { font-family: "Avenir Next", "Segoe UI", -apple-system, BlinkMacSystemFont, Helvetica, Arial, sans-serif;
          -webkit-user-select: none; user-select: none; touch-action: none; }
-  #c { position: fixed; inset: 0; width: 100%; height: 100%; display: block; }
+  #c { position: fixed; inset: 0; width: 100%; height: 100%; display: block;
+       filter: saturate(1.14) contrast(1.05); }
 
-  /* cinematic vignette */
   #vignette { position: fixed; inset: 0; pointer-events: none; z-index: 5;
     background: radial-gradient(ellipse at center, rgba(0,0,0,0) 55%, rgba(10,10,25,0.35) 100%); }
 
@@ -23,33 +23,79 @@
 
   #title-chip { top: 16px; left: 16px; font-weight: 700; font-size: 15px; }
   #title-chip .sub { font-weight: 400; opacity: 0.75; font-size: 12px; margin-left: 8px; }
-  #zone-chip { bottom: 18px; left: 16px; font-size: 15px; transition: opacity .4s; }
-  #hint-chip { bottom: 18px; right: 16px; font-size: 12.5px; opacity: 0.85; line-height: 1.7; border-radius: 16px; }
-  #hint-chip b { color: #ffd166; font-weight: 600; }
+  #zone-chip { bottom: 108px; left: 16px; font-size: 14px; transition: opacity .4s; }
   #sound-chip { top: 16px; right: 16px; cursor: pointer; font-size: 13px; }
   #sound-chip:hover { background: rgba(30, 50, 75, 0.7); }
+  #help-chip { top: 62px; right: 16px; cursor: pointer; font-size: 13px; }
+  #help-chip:hover { background: rgba(30, 50, 75, 0.7); }
 
-  /* splash screen */
+  /* needs bars */
+  #needs { position: fixed; z-index: 10; left: 16px; bottom: 18px; width: 210px;
+    background: rgba(10, 20, 35, 0.55); backdrop-filter: blur(10px);
+    border: 1px solid rgba(255,255,255,0.18); border-radius: 16px; padding: 10px 14px; }
+  .need { display: flex; align-items: center; margin: 5px 0; }
+  .need .ic { width: 24px; font-size: 14px; }
+  .need .bar { flex: 1; height: 9px; border-radius: 5px; background: rgba(255,255,255,0.14); overflow: hidden; }
+  .need .fill { height: 100%; border-radius: 5px; transition: width .35s ease; }
+  #nb-hunger .fill { background: linear-gradient(90deg, #ff9a56, #ffd166); }
+  #nb-fun .fill    { background: linear-gradient(90deg, #ff5e8a, #ff9ad5); }
+  #nb-energy .fill { background: linear-gradient(90deg, #38c6a0, #9be15d); }
+
+  /* contextual action prompt */
+  #prompt { position: fixed; z-index: 12; left: 50%; bottom: 86px; transform: translateX(-50%);
+    color: #fff; background: rgba(15, 30, 50, 0.72); border: 1px solid rgba(255,214,102,0.55);
+    border-radius: 12px; padding: 10px 20px; font-size: 15px; font-weight: 600; letter-spacing: 0.4px;
+    backdrop-filter: blur(8px); display: none; text-shadow: 0 1px 3px rgba(0,0,0,0.6); }
+  #prompt b { color: #ffd166; }
+
+  /* status toast */
+  #toast { position: fixed; z-index: 12; left: 50%; top: 74px; transform: translateX(-50%);
+    color: #fff; background: rgba(15, 30, 50, 0.75); border: 1px solid rgba(255,255,255,0.25);
+    border-radius: 12px; padding: 9px 20px; font-size: 14px; opacity: 0; transition: opacity .35s; }
+
+  /* speech bubble */
+  #bubble { position: fixed; z-index: 14; max-width: 320px; transform: translate(-50%, -100%);
+    background: rgba(255,255,255,0.96); color: #17293d; border-radius: 14px; padding: 10px 14px;
+    font-size: 13.5px; line-height: 1.45; box-shadow: 0 6px 24px rgba(0,0,0,0.35); display: none; }
+  #bubble .who { font-weight: 800; font-size: 12px; color: #b3543e; letter-spacing: 0.6px; margin-bottom: 2px; }
+  #bubble:after { content: ""; position: absolute; left: 50%; bottom: -8px; transform: translateX(-50%);
+    border: 9px solid transparent; border-top-color: rgba(255,255,255,0.96); border-bottom: none; }
+
+  /* checklist */
+  #list { position: fixed; z-index: 16; right: 16px; top: 110px; width: 265px;
+    background: rgba(10, 22, 38, 0.82); backdrop-filter: blur(12px);
+    border: 1px solid rgba(255,255,255,0.2); border-radius: 16px; padding: 14px 18px;
+    color: #fff; font-size: 13.5px; line-height: 2; display: none; }
+  #list h3 { font-size: 13px; letter-spacing: 2px; color: #ffd166; margin-bottom: 6px; }
+  #list .item.done { color: #9be15d; text-decoration: line-through; text-decoration-color: rgba(155,225,93,.6); }
+  #list .item .mark { display: inline-block; width: 20px; }
+
+  #banner { position: fixed; z-index: 30; left: 50%; top: 40%; transform: translate(-50%,-50%) scale(.5);
+    font-size: clamp(26px, 5vw, 52px); font-weight: 900; letter-spacing: 2px; color: #fff; text-align: center;
+    text-shadow: 0 0 30px rgba(255,180,60,.95), 0 4px 10px rgba(0,0,0,.5); opacity: 0; pointer-events: none;
+    transition: all .5s cubic-bezier(.18,1.6,.4,1); }
+  #banner.show { opacity: 1; transform: translate(-50%,-50%) scale(1); }
+
+  /* splash */
   #splash { position: fixed; inset: 0; z-index: 100; display: flex; flex-direction: column;
     align-items: center; justify-content: center; text-align: center; cursor: pointer;
     background: radial-gradient(ellipse at 50% 60%, rgba(8,20,40,0.55) 0%, rgba(5,10,25,0.88) 100%);
     transition: opacity 0.9s ease; }
   #splash.hidden { opacity: 0; pointer-events: none; }
-  #splash h1 { font-size: clamp(44px, 9vw, 110px); font-weight: 900; letter-spacing: 4px; line-height: 1.02;
+  #splash h1 { font-size: clamp(40px, 8.4vw, 100px); font-weight: 900; letter-spacing: 4px; line-height: 1.02;
     background: linear-gradient(180deg, #ffe29a 0%, #ff9a56 45%, #ff5e8a 100%);
     -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent;
     filter: drop-shadow(0 4px 24px rgba(255,120,80,0.35)); }
-  #splash h2 { color: #cfe8ff; font-weight: 300; letter-spacing: 6px; font-size: clamp(13px, 2.4vw, 22px);
+  #splash h2 { color: #cfe8ff; font-weight: 300; letter-spacing: 5px; font-size: clamp(12px, 2.2vw, 20px);
     margin-top: 10px; text-transform: uppercase; }
-  #splash .controls { margin-top: 42px; color: rgba(255,255,255,0.92); font-size: clamp(13px, 1.8vw, 16px);
-    line-height: 2.1; background: rgba(10,25,45,0.5); border: 1px solid rgba(255,255,255,0.15);
-    border-radius: 18px; padding: 18px 34px; backdrop-filter: blur(8px); }
+  #splash .controls { margin-top: 30px; color: rgba(255,255,255,0.92); font-size: clamp(12px, 1.7vw, 15px);
+    line-height: 2.05; background: rgba(10,25,45,0.5); border: 1px solid rgba(255,255,255,0.15);
+    border-radius: 18px; padding: 16px 30px; backdrop-filter: blur(8px); }
   #splash .controls b { color: #ffd166; font-weight: 700; }
-  #splash .go { margin-top: 34px; color: #fff; font-size: clamp(15px, 2.2vw, 20px); font-weight: 700;
+  #splash .go { margin-top: 28px; color: #fff; font-size: clamp(14px, 2vw, 19px); font-weight: 700;
     letter-spacing: 2px; animation: pulse 1.6s ease-in-out infinite; }
   @keyframes pulse { 0%,100% { opacity: 0.55; transform: scale(1); } 50% { opacity: 1; transform: scale(1.05); } }
 
-  /* aloha shout */
   #aloha-pop { position: fixed; z-index: 20; left: 50%; top: 32%; transform: translate(-50%, -50%) scale(0.4);
     font-size: clamp(34px, 6vw, 64px); font-weight: 900; color: #fff; letter-spacing: 3px;
     text-shadow: 0 0 24px rgba(255,140,60,0.9), 0 3px 6px rgba(0,0,0,0.5); opacity: 0;
@@ -61,12 +107,15 @@
     border: 2px solid rgba(255,255,255,0.35); background: rgba(255,255,255,0.08); display: none; pointer-events: none; }
   #joy .knob { position: absolute; left: 50%; top: 50%; width: 52px; height: 52px; border-radius: 50%;
     background: rgba(255,255,255,0.45); transform: translate(-50%,-50%); }
-  #stomp-btn { position: fixed; z-index: 15; right: 26px; bottom: 96px; width: 84px; height: 84px;
-    border-radius: 50%; border: 2px solid rgba(255,255,255,0.4); background: rgba(255, 94, 138, 0.35);
-    color: #fff; font-weight: 800; font-size: 13px; letter-spacing: 1px; display: none;
-    align-items: center; justify-content: center; backdrop-filter: blur(6px); }
-  body.touch #stomp-btn { display: flex; }
-  body.touch #hint-chip { display: none; }
+  .mbtn { position: fixed; z-index: 15; width: 66px; height: 66px; border-radius: 50%;
+    border: 2px solid rgba(255,255,255,0.4); color: #fff; font-weight: 800; font-size: 11px;
+    letter-spacing: 0.5px; display: none; align-items: center; justify-content: center;
+    backdrop-filter: blur(6px); }
+  #btn-act   { right: 22px;  bottom: 190px; background: rgba(255, 209, 102, 0.32); }
+  #btn-stomp { right: 22px;  bottom: 110px; background: rgba(255, 94, 138, 0.35); }
+  #btn-uke   { right: 100px; bottom: 150px; background: rgba(80, 190, 220, 0.32); }
+  #btn-hula  { right: 100px; bottom: 70px;  background: rgba(155, 225, 93, 0.30); }
+  body.touch .mbtn { display: flex; }
 
   #err { position: fixed; inset: 0; z-index: 200; display: none; align-items: center; justify-content: center;
     color: #fff; background: #16202e; font-size: 16px; padding: 40px; text-align: center; line-height: 1.8; }
@@ -76,26 +125,43 @@
   <canvas id="c"></canvas>
   <div id="vignette"></div>
 
-  <div id="title-chip" class="chip">🌺 ALOHA SUMO<span class="sub">Waikiki Village Resort · Oʻahu</span></div>
+  <div id="title-chip" class="chip">🌺 ALOHA SUMO<span class="sub">A Yokozuna's Vacation · Waikiki Village Resort</span></div>
   <div id="zone-chip" class="chip">🌺 Resort Grounds</div>
   <div id="sound-chip" class="chip" title="Toggle sound (M)">🔊 Sound On</div>
-  <div id="hint-chip" class="chip">
-    <b>WASD</b> walk &nbsp;·&nbsp; <b>SHIFT</b> run &nbsp;·&nbsp; <b>SPACE</b> shiko stomp<br>
-    <b>F</b> shout ALOHA &nbsp;·&nbsp; <b>drag</b> look &nbsp;·&nbsp; <b>scroll</b> zoom &nbsp;·&nbsp; <b>M</b> mute
+  <div id="help-chip" class="chip" title="Vacation checklist (Tab)">📋 Checklist</div>
+
+  <div id="needs">
+    <div class="need" id="nb-hunger"><span class="ic">🍲</span><div class="bar"><div class="fill" style="width:80%"></div></div></div>
+    <div class="need" id="nb-fun"><span class="ic">🎉</span><div class="bar"><div class="fill" style="width:70%"></div></div></div>
+    <div class="need" id="nb-energy"><span class="ic">⚡</span><div class="bar"><div class="fill" style="width:90%"></div></div></div>
   </div>
+
+  <div id="prompt"><b>E</b> — Eat</div>
+  <div id="toast"></div>
+  <div id="bubble"><div class="who"></div><div class="txt"></div></div>
+
+  <div id="list">
+    <h3>🏝️ TO DO IN PARADISE</h3>
+    <div class="items"></div>
+  </div>
+  <div id="banner">🏆 LIVING THE DREAM<br><span style="font-size:.5em;font-weight:600">yokozuna vacation complete</span></div>
 
   <div id="aloha-pop">ALOHA!</div>
 
   <div id="joy"><div class="knob"></div></div>
-  <button id="stomp-btn">STOMP</button>
+  <button class="mbtn" id="btn-act">ACT</button>
+  <button class="mbtn" id="btn-stomp">STOMP</button>
+  <button class="mbtn" id="btn-uke">🎸 UKE</button>
+  <button class="mbtn" id="btn-hula">💃 HULA</button>
 
   <div id="splash">
     <h1>ALOHA&nbsp;SUMO</h1>
-    <h2>Waikiki Village Resort &nbsp;·&nbsp; Oʻahu, Hawaiʻi</h2>
+    <h2>A Yokozuna's Vacation &nbsp;·&nbsp; Waikiki Village Resort, Oʻahu</h2>
     <div class="controls">
-      <b>W A S D</b> — waddle around the resort<br>
-      <b>SHIFT</b> — thunder-run &nbsp;&nbsp; <b>SPACE</b> — shiko stomp &nbsp;&nbsp; <b>F</b> — shout ALOHA<br>
-      <b>Mouse drag</b> — look around &nbsp;&nbsp; <b>Scroll</b> — zoom
+      <b>W A S D</b> walk &nbsp; <b>SHIFT</b> run &nbsp; <b>SPACE</b> shiko stomp &nbsp; <b>F</b> shout ALOHA<br>
+      <b>E</b> interact / eat / relax &nbsp; <b>T</b> talk &nbsp; <b>U</b> ukulele &nbsp; <b>G</b> hula dance<br>
+      <b>TAB</b> vacation checklist &nbsp; <b>drag</b> look &nbsp; <b>scroll</b> zoom &nbsp; <b>M</b> mute<br>
+      <span style="opacity:.8">Swim by walking into deep water. The makuuchi are practicing on the beach dohyō — go say hello.</span>
     </div>
     <div class="go">▶ &nbsp;CLICK OR PRESS ANY KEY TO BEGIN&nbsp; ◀</div>
   </div>
