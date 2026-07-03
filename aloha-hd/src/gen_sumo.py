@@ -38,10 +38,10 @@ def tgt(rel, w):
 
 tgt("stomach/stomach-pregnant-incr.target.gz", 0.7)
 tgt("stomach/stomach-tone-decr.target.gz", 0.35)
-tgt("cheek/l-cheek-volume-incr.target.gz", 0.5)
-tgt("cheek/r-cheek-volume-incr.target.gz", 0.5)
-tgt("chin/chin-jaw-incr.target.gz", 0.4)
-tgt("neck/neck-double-chin-incr.target.gz", 0.25)
+tgt("cheek/l-cheek-volume-incr.target.gz", 0.85)
+tgt("cheek/r-cheek-volume-incr.target.gz", 0.85)
+tgt("chin/chin-jaw-incr.target.gz", 0.6)
+tgt("neck/neck-double-chin-incr.target.gz", 0.35)
 tgt("torso/torso-vshape-incr.target.gz", 0.35)
 print("== body shaped, verts", len(body.data.vertices))
 
@@ -60,9 +60,9 @@ tex1.inputs["Scale"].default_value = 14
 tex1.inputs["Detail"].default_value = 4
 ramp1 = nt.nodes.new("ShaderNodeValToRGB")
 ramp1.color_ramp.elements[0].position = 0.35
-ramp1.color_ramp.elements[0].color = (0.55, 0.335, 0.20, 1)
+ramp1.color_ramp.elements[0].color = (0.60, 0.42, 0.30, 1)
 ramp1.color_ramp.elements[1].position = 0.72
-ramp1.color_ramp.elements[1].color = (0.68, 0.45, 0.30, 1)
+ramp1.color_ramp.elements[1].color = (0.72, 0.55, 0.42, 1)
 nt.links.new(tex1.outputs["Fac"], ramp1.inputs["Fac"])
 nt.links.new(ramp1.outputs["Color"], pb2.inputs["Base Color"])
 
@@ -113,9 +113,9 @@ try:
     skin_d = bake_to("skin_diffuse", 2048, "DIFFUSE", {"COLOR"})
     # warm the tone toward a sun-tanned rikishi complexion
     px = np.array(skin_d.pixels[:]).reshape(-1, 4)
-    px[:, 0] *= 0.98
-    px[:, 1] *= 0.84
-    px[:, 2] *= 0.72
+    px[:, 0] *= 1.0
+    px[:, 1] *= 0.92
+    px[:, 2] *= 0.84
     skin_d.pixels[:] = px.clip(0, 1).ravel()
     skin_d.pack()
 except Exception as e:
@@ -191,6 +191,11 @@ eyeL = group_center(["joint-l-eye"])
 eyeR = group_center(["joint-r-eye"])
 print("eye sockets:", eyeL, eyeR)
 
+def face_front(cx, cz, hw=0.02, hz=0.012):
+    m = (np.abs(verts[:, 0] - cx) < hw) & (np.abs(verts[:, 2] - cz) < hz) & (verts[:, 1] < 0)
+    sel = verts[m]
+    return sel[:, 1].min() if len(sel) else None
+
 # ----------------------------------------------------------------- 5. eyes
 scleramat = bpy.data.materials.new("sclera")
 scleramat.use_nodes = True
@@ -206,14 +211,17 @@ ib.inputs["Roughness"].default_value = 0.08
 def add_eye(center, side):
     if center is None:
         return None
-    bpy.ops.mesh.primitive_uv_sphere_add(radius=0.0138, location=center + Vector((0, -0.006, 0)))
+    fy = face_front(center.x, center.z)
+    ey = (fy + 0.0122) if fy is not None else (center.y - 0.011)
+    center = Vector((center.x, ey, center.z))
+    bpy.ops.mesh.primitive_uv_sphere_add(radius=0.0142, location=center)
     eye = bpy.context.active_object
     eye.name = f"Eye_{side}"
     bpy.ops.object.shade_smooth()
     eye.data.materials.append(scleramat)
     # iris+pupil: small dark glossy dome at the front pole (character faces -Y)
-    bpy.ops.mesh.primitive_uv_sphere_add(radius=0.0064,
-        location=center + Vector((0, -0.0182, 0)))
+    bpy.ops.mesh.primitive_uv_sphere_add(radius=0.0066,
+        location=center + Vector((0, -0.0128, 0)))
     iris = bpy.context.active_object
     iris.scale = (1, 0.45, 1)
     bpy.ops.object.shade_smooth()
@@ -240,11 +248,23 @@ hb.inputs["Roughness"].default_value = 0.32
 
 head_top = verts[verts[:, 2] > zmax - 0.02].mean(axis=0)
 # slicked hair: flattened sphere intersecting the skull (reads as a hairline)
-bpy.ops.mesh.primitive_uv_sphere_add(segments=32, ring_count=16, radius=0.102,
-                                     location=(0, head_top[1] + 0.012, zmax - 0.062))
+bpy.ops.mesh.primitive_uv_sphere_add(segments=32, ring_count=16, radius=0.098,
+                                     location=(0, head_top[1] + 0.03, zmax - 0.052))
 cap = bpy.context.active_object
 cap.name = "HairCap"
-cap.scale = (0.98, 1.08, 0.72)
+cap.scale = (0.96, 1.06, 0.6)
+# combed-back side/nape hair
+bpy.ops.mesh.primitive_uv_sphere_add(segments=28, ring_count=14, radius=0.094,
+                                     location=(0, head_top[1] + 0.052, zmax - 0.105))
+backhair = bpy.context.active_object
+backhair.name = "BackHair"
+backhair.scale = (0.96, 0.82, 1.05)
+bpy.ops.object.shade_smooth()
+backhair.data.materials.append(hairmat)
+vgbh = backhair.vertex_groups.new(name="mixamorig:Head")
+vgbh.add(list(range(len(backhair.data.vertices))), 1.0, "REPLACE")
+ambh = backhair.modifiers.new("Armature", "ARMATURE")
+ambh.object = rig
 bpy.ops.object.shade_smooth()
 cap.data.materials.append(hairmat)
 
@@ -253,11 +273,19 @@ bpy.ops.mesh.primitive_cylinder_add(radius=0.0135, depth=0.075,
                                     location=(0, head_top[1] - 0.015, zmax + 0.020))
 bun = bpy.context.active_object
 bun.name = "Bun"
-bun.rotation_euler = (math.radians(97), 0, 0)
+bun.rotation_euler = (math.radians(100), 0, 0)
 bpy.ops.object.shade_smooth()
 bun.data.materials.append(hairmat)
+# the little forward tip of the chonmage
+bpy.ops.mesh.primitive_cone_add(radius1=0.009, depth=0.035,
+                                location=(0, head_top[1] - 0.046, zmax + 0.004),
+                                rotation=(math.radians(-38), 0, 0))
+tip = bpy.context.active_object
+tip.name = "BunTip"
+bpy.ops.object.shade_smooth()
+tip.data.materials.append(hairmat)
 
-for ob in [cap, bun]:
+for ob in [cap, bun, tip]:
     vg = ob.vertex_groups.new(name="mixamorig:Head")
     vg.add(list(range(len(ob.data.vertices))), 1.0, "REPLACE")
     am = ob.modifiers.new("Armature", "ARMATURE")
@@ -291,7 +319,7 @@ print("belt z", round(belt_z, 3), "radius", round(rad, 3))
 clothmat = bpy.data.materials.new("mawashi")
 clothmat.use_nodes = True
 cb = clothmat.node_tree.nodes["Principled BSDF"]
-cb.inputs["Base Color"].default_value = (0.93, 0.90, 0.82, 1)
+cb.inputs["Base Color"].default_value = (0.72, 0.50, 0.10, 1)
 cb.inputs["Roughness"].default_value = 0.8
 
 ropemat = bpy.data.materials.new("tsuna")
@@ -329,26 +357,35 @@ for i, (bz, bh) in enumerate([(belt_z - 0.055, 0.075), (belt_z, 0.075), (belt_z 
     weight_to_body(b)
     belts.append(b)
 
-# front panel (covers the groin like a proper keiko-mawashi)
-bpy.ops.mesh.primitive_grid_add(x_subdivisions=6, y_subdivisions=12, size=1,
-                                location=(0, -rad + 0.01, belt_z - 0.175))
+# kesho-mawashi apron: flat gold panel hanging from the belt front
+bpy.ops.mesh.primitive_grid_add(x_subdivisions=4, y_subdivisions=8, size=1,
+                                location=(0, -rad - 0.018, belt_z - 0.30))
 pan = bpy.context.active_object
-pan.name = "FrontPanel"
-pan.scale = (0.085, 1, 0.15)
-pan.rotation_euler = (math.radians(90), 0, 0)
+pan.name = "KeshoApron"
+pan.scale = (0.16, 0.26, 1)
+pan.rotation_euler = (math.radians(96), 0, 0)
 bpy.ops.object.transform_apply(scale=True, rotation=True)
-swp = pan.modifiers.new("sw", "SHRINKWRAP")
-swp.target = torso_tgt
-swp.wrap_mode = "OUTSIDE_SURFACE"
-swp.offset = 0.007
-bpy.ops.object.modifier_apply(modifier="sw")
 solp = pan.modifiers.new("sol", "SOLIDIFY")
-solp.thickness = 0.006
+solp.thickness = 0.007
 bpy.ops.object.modifier_apply(modifier="sol")
 bpy.ops.object.shade_smooth()
 pan.data.materials.append(clothmat)
 weight_to_body(pan)
 belts.append(pan)
+# black braided fringe at the hem of the apron
+fringemat = bpy.data.materials.new("fringe")
+fringemat.use_nodes = True
+fb = fringemat.node_tree.nodes["Principled BSDF"]
+fb.inputs["Base Color"].default_value = (0.03, 0.03, 0.035, 1)
+fb.inputs["Roughness"].default_value = 0.7
+bpy.ops.mesh.primitive_cube_add(location=(0, -rad - 0.052, belt_z - 0.445))
+fr = bpy.context.active_object
+fr.name = "Fringe"
+fr.scale = (0.16, 0.02, 0.05)
+bpy.ops.object.shade_smooth()
+fr.data.materials.append(fringemat)
+weight_to_body(fr)
+belts.append(fr)
 
 # back knot
 bpy.ops.mesh.primitive_torus_add(major_radius=0.045, minor_radius=0.02,
@@ -361,7 +398,7 @@ knot.data.materials.append(clothmat)
 weight_to_body(knot)
 
 # tsuna rope above the belt
-bpy.ops.mesh.primitive_torus_add(major_radius=rad + 0.015, minor_radius=0.028,
+bpy.ops.mesh.primitive_torus_add(major_radius=rad + 0.015, minor_radius=0.034,
                                  major_segments=64, minor_segments=12,
                                  location=(0, 0.008, belt_z + 0.105))
 tsuna = bpy.context.active_object
@@ -375,15 +412,26 @@ bpy.ops.object.shade_smooth()
 tsuna.data.materials.append(ropemat)
 weight_to_body(tsuna, ("mixamorig:Spine",))
 
-# tsuna back loops
-for dx in (-0.045, 0.045):
-    bpy.ops.mesh.primitive_torus_add(major_radius=0.05, minor_radius=0.018,
-                                     location=(dx, sl[:, 1].max() + 0.035, belt_z + 0.10),
-                                     rotation=(0, math.radians(80), 0))
-    lp = bpy.context.active_object
+# the big rope loop rising up the back (dohyo-iri style)
+bpy.ops.mesh.primitive_torus_add(major_radius=0.125, minor_radius=0.026,
+                                 major_segments=40, minor_segments=10,
+                                 location=(0.02, sl[:, 1].max() + 0.015, belt_z + 0.22),
+                                 rotation=(0, math.radians(90), math.radians(8)))
+lp = bpy.context.active_object
+bpy.ops.object.shade_smooth()
+lp.data.materials.append(ropemat)
+weight_to_body(lp, ("mixamorig:Spine",))
+belts.append(lp)
+# white folded bundles hanging at the front of the rope
+for bx in (-0.05, 0.05):
+    bpy.ops.mesh.primitive_uv_sphere_add(radius=0.055,
+        location=(bx, -rad + 0.035, belt_z - 0.01))
+    bd = bpy.context.active_object
+    bd.scale = (0.8, 0.62, 1.15)
     bpy.ops.object.shade_smooth()
-    lp.data.materials.append(ropemat)
-    weight_to_body(lp, ("mixamorig:Spine",))
+    bd.data.materials.append(ropemat)
+    weight_to_body(bd, ("mixamorig:Hips",))
+    belts.append(bd)
 
 # shide: zigzag paper strips hanging from the front of the tsuna
 papermat = bpy.data.materials.new("shide")
@@ -395,7 +443,7 @@ pb.inputs["Roughness"].default_value = 0.6
 def make_shide(ang):
     # zigzag strip mesh
     vs, fs = [], []
-    L, W, folds = 0.115, 0.028, 4
+    L, W, folds = 0.165, 0.034, 4
     for i in range(folds + 1):
         z = -L * i / folds
         off = 0.008 if i % 2 else -0.008
@@ -409,7 +457,7 @@ def make_shide(ang):
     bpy.context.scene.collection.objects.link(ob)
     x = math.sin(ang) * (rad + 0.03)
     y = -math.cos(ang) * (rad + 0.035) + 0.01
-    ob.location = (x, y - 0.012, belt_z + 0.085)
+    ob.location = (x, y - 0.016, belt_z + 0.06)
     ob.rotation_euler = (0, 0, -ang)
     sol = ob.modifiers.new("sol", "SOLIDIFY")
     sol.thickness = 0.002
@@ -423,11 +471,13 @@ shides = [make_shide(a) for a in (-0.38, 0.0, 0.38)]
 brows = []
 if eyeL is not None and eyeR is not None:
     for c, side in ((eyeL, 1), (eyeR, -1)):
-        bpy.ops.mesh.primitive_cube_add(location=(c.x, c.y - 0.032, c.z + 0.033))
+        by = face_front(c.x, c.z + 0.028, hw=0.028, hz=0.01)
+        by = (by - 0.004) if by is not None else (c.y - 0.042)
+        bpy.ops.mesh.primitive_cube_add(location=(c.x, by, c.z + 0.026))
         br = bpy.context.active_object
         br.name = f"Brow{side}"
-        br.scale = (0.024, 0.0045, 0.0045)
-        br.rotation_euler = (math.radians(6), math.radians(10 * side), math.radians(-7 * side))
+        br.scale = (0.030, 0.005, 0.0062)
+        br.rotation_euler = (math.radians(5), math.radians(9 * side), math.radians(-2 * side))
         bpy.ops.object.shade_smooth()
         br.data.materials.append(hairmat)
         vg = br.vertex_groups.new(name="mixamorig:Head")
@@ -436,9 +486,30 @@ if eyeL is not None and eyeR is not None:
         am.object = rig
         brows.append(br)
 
+# nipples: small dark discs at the pec apex
+nipmat = bpy.data.materials.new("nipple")
+nipmat.use_nodes = True
+nb = nipmat.node_tree.nodes["Principled BSDF"]
+nb.inputs["Base Color"].default_value = (0.45, 0.26, 0.20, 1)
+nb.inputs["Roughness"].default_value = 0.6
+for sx in (-1, 1):
+    m2 = ((np.abs(verts[:, 0] - sx * 0.105) < 0.04) &
+          (verts[:, 2] > zmax - 0.60) & (verts[:, 2] < zmax - 0.50))
+    sel = verts[m2]
+    if len(sel):
+        pnt = sel[np.argmin(sel[:, 1])]
+        bpy.ops.mesh.primitive_cylinder_add(radius=0.013, depth=0.003,
+            location=(pnt[0], pnt[1] - 0.001, pnt[2]),
+            rotation=(math.radians(90), 0, 0))
+        nip = bpy.context.active_object
+        bpy.ops.object.shade_smooth()
+        nip.data.materials.append(nipmat)
+        weight_to_body(nip, ("mixamorig:Spine2",))
+        belts.append(nip)
+
 # ----------------------------------------------------------------- 8. export
 bpy.data.objects.remove(torso_tgt, do_unlink=True)
-parts = [body] + eyes + [cap, bun] + belts + [knot, tsuna] + shides + brows
+parts = [body] + eyes + [cap, bun, tip, backhair] + belts + [knot, tsuna] + shides + brows
 bpy.ops.object.select_all(action="DESELECT")
 for ob in parts:
     ob.select_set(True)
