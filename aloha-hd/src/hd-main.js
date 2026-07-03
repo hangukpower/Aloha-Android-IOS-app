@@ -18,7 +18,7 @@ const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, powerPrefere
 renderer.setPixelRatio(Math.min(devicePixelRatio || 1, 2));
 renderer.setSize(innerWidth, innerHeight);
 renderer.toneMapping = THREE.ACESFilmicToneMapping;
-renderer.toneMappingExposure = 0.55;
+renderer.toneMappingExposure = 0.68;
 renderer.shadowMap.enabled = true;
 renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 
@@ -55,7 +55,7 @@ const groundY = (x, z) => beachY(z);
 
 // sun matched to the HDRI sunrise over the water
 const sunDir = new THREE.Vector3(-0.78, 0.6, 0.2).normalize();
-const sun = new THREE.DirectionalLight(0xfff2dd, 2.2);
+const sun = new THREE.DirectionalLight(0xfff0d6, 2.6);
 sun.castShadow = true;
 sun.shadow.mapSize.set(4096, 4096);
 sun.shadow.camera.near = 5; sun.shadow.camera.far = 300;
@@ -71,6 +71,14 @@ scene.add(sun, sun.target);
     scene.background = t;
     const pmrem = new THREE.PMREMGenerator(renderer);
     scene.environment = pmrem.fromCubemap(t).texture;
+    // the cubemap contains the sun itself, so cut indirect intensity way down
+    scene.traverse(o => {
+      if (o.isMesh || o.isSkinnedMesh) {
+        const ms = Array.isArray(o.material) ? o.material : [o.material];
+        ms.forEach(mm => { if (mm && 'envMapIntensity' in mm) mm.envMapIntensity = 0.45; });
+      }
+    });
+    window.__envReady = true;
   });
 }
 
@@ -654,7 +662,11 @@ const loader = new GLTFLoader();
 loader.load(SUMO_GLB, g => {
   sumo = g.scene;
   sumo.traverse(o => {
-    if (o.isMesh || o.isSkinnedMesh) { o.castShadow = true; o.receiveShadow = false; o.frustumCulled = false; }
+    if (o.isMesh || o.isSkinnedMesh) {
+      o.castShadow = true; o.receiveShadow = false; o.frustumCulled = false;
+      const ms = Array.isArray(o.material) ? o.material : [o.material];
+      ms.forEach(mm => { if (mm && 'envMapIntensity' in mm) mm.envMapIntensity = 0.5; });
+    }
   });
   sumo.position.set(0, 0, 8);
   scene.add(sumo);
