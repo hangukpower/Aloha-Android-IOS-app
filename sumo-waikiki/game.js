@@ -14,11 +14,11 @@
     master: { name: "Futagoyama Oyakata", rank: "ex-Ōzeki Miyabiyama" },
     // Futagoyama-beya — edit/extend to match the current heya roster:
     futagoyama: [
-      { name: "Yoshii", rank: "Maegashira", skin: 0xc98a52, scale: 0.96, belly: 0.95,
+      { name: "Yoshii", rank: "Maegashira", stable: "Futagoyama", skin: 0xc98a52, scale: 0.96, belly: 0.95,
         line: "Oyakata brought the whole heya to Hawaiʻi — but keiko comes first, beach or no beach!" },
-      { name: "Futagoyama deshi", rank: "Tsukebito", skin: 0xba7a45, scale: 0.9, belly: 0.9, deshi: true,
+      { name: "Futagoyama deshi", rank: "Tsukebito", stable: "Futagoyama", skin: 0xba7a45, scale: 0.9, belly: 0.9, deshi: true,
         line: "I carry the water, I rake the dohyō... one day I'll be the one they cheer for." },
-      { name: "Futagoyama deshi", rank: "Tsukebito", skin: 0xd09a62, scale: 0.88, belly: 0.85, deshi: true,
+      { name: "Futagoyama deshi", rank: "Tsukebito", stable: "Futagoyama", skin: 0xd09a62, scale: 0.88, belly: 0.85, deshi: true,
         line: "The oyakata's chanko recipe? Secret. But today it has pineapple in it. Aloha style!" }
     ],
     // visiting makuuchi for the inter-stable beach practice (degeiko):
@@ -65,18 +65,32 @@
     document.getElementById("err").style.display = "flex";
     return;
   }
+  var VISUAL = {
+    exposure: 1.02,
+    fogColor: 0xd5edf6,
+    fogNear: 430,
+    fogFar: 2300,
+    sunColor: 0xfff0b6,
+    sunIntensity: 1.82,
+    hemiSky: 0x8ed8ff,
+    hemiGround: 0xffcf68,
+    hemiIntensity: 0.76,
+    ambientColor: 0x2a4968,
+    ambientIntensity: 0.46
+  };
+
   renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 1.5));
   renderer.setSize(window.innerWidth, window.innerHeight);
   renderer.outputEncoding = THREE.sRGBEncoding;
   renderer.toneMapping = THREE.ACESFilmicToneMapping;
-  renderer.toneMappingExposure = 0.75;
+  renderer.toneMappingExposure = VISUAL.exposure;
   renderer.shadowMap.enabled = true;
   renderer.shadowMap.type = THREE.PCFShadowMap;
 
   var scene = new THREE.Scene();
-  scene.fog = new THREE.Fog(0xcfdfe8, 280, 1700);
+  scene.fog = new THREE.Fog(VISUAL.fogColor, VISUAL.fogNear, VISUAL.fogFar);
 
-  var camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.3, 14000);
+  var camera = new THREE.PerspectiveCamera(57, window.innerWidth / window.innerHeight, 0.3, 14000);
 
   window.addEventListener("resize", function () {
     camera.aspect = window.innerWidth / window.innerHeight;
@@ -127,6 +141,45 @@
     var t = new THREE.CanvasTexture(cv);
     if (srgb !== false) t.encoding = THREE.sRGBEncoding;
     t.anisotropy = renderer.capabilities.getMaxAnisotropy();
+    return t;
+  }
+  function tintColor(hex, amt) {
+    var c = new THREE.Color(hex);
+    c.offsetHSL(0, 0, amt);
+    return "#" + c.getHexString();
+  }
+  function detailTexture(base, specks, scale) {
+    var t = canvasTexture(makeCanvas(128, 128, function (ctx, w, h) {
+      ctx.fillStyle = tintColor(base, 0);
+      ctx.fillRect(0, 0, w, h);
+      speckle(ctx, w, h, specks || 900, [tintColor(base, -0.09), tintColor(base, 0.07), "rgba(255,255,255,0.08)", "rgba(0,0,0,0.08)"], 0.45, 1.8);
+    }));
+    t.wrapS = t.wrapT = THREE.RepeatWrapping;
+    t.repeat.set(scale || 2, scale || 2);
+    return t;
+  }
+  function texturedStandard(base, roughness, repeat, metalness) {
+    return new THREE.MeshStandardMaterial({
+      color: base, map: detailTexture(base, 700, repeat || 2),
+      roughness: roughness, metalness: metalness || 0
+    });
+  }
+  function grainNormalTexture(repeatX, repeatY, strength) {
+    var N = 96, cv = document.createElement("canvas"), ctx, img, x, y;
+    cv.width = N; cv.height = N; ctx = cv.getContext("2d");
+    img = ctx.createImageData(N, N);
+    for (y = 0; y < N; y++) for (x = 0; x < N; x++) {
+      var n = Math.sin(x * 0.7) * 0.4 + Math.sin(y * 0.53) * 0.35 + (Math.random() - 0.5) * strength;
+      var i = (y * N + x) * 4;
+      img.data[i] = 128 + n * 18;
+      img.data[i + 1] = 128 + n * 14;
+      img.data[i + 2] = 238;
+      img.data[i + 3] = 255;
+    }
+    ctx.putImageData(img, 0, 0);
+    var t = new THREE.CanvasTexture(cv);
+    t.wrapS = t.wrapT = THREE.RepeatWrapping;
+    t.repeat.set(repeatX, repeatY);
     return t;
   }
   function speckle(ctx, w, h, n, colors, rMin, rMax) {
@@ -192,16 +245,16 @@
   sky.scale.setScalar(7500);
   scene.add(sky);
   var skyU = sky.material.uniforms;
-  skyU.turbidity.value = 3;
-  skyU.rayleigh.value = 2.0;
-  skyU.mieCoefficient.value = 0.004;
-  skyU.mieDirectionalG.value = 0.97;
+  skyU.turbidity.value = 1.6;
+  skyU.rayleigh.value = 3.25;
+  skyU.mieCoefficient.value = 0.0024;
+  skyU.mieDirectionalG.value = 0.91;
 
-  // afternoon sun hanging to the southwest, out over the water
-  var sunDir = new THREE.Vector3(-0.62, 0.5, 0.72).normalize();
+  // crisp tropical sun hanging over the water: bluer sky, cleaner yellow light
+  var sunDir = new THREE.Vector3(-0.45, 0.62, 0.64).normalize();
   skyU.sunPosition.value.copy(sunDir);
 
-  var sun = new THREE.DirectionalLight(0xffe2b8, 1.35);
+  var sun = new THREE.DirectionalLight(VISUAL.sunColor, VISUAL.sunIntensity);
   sun.castShadow = true;
   sun.shadow.mapSize.set(1536, 1536);
   sun.shadow.camera.near = 10;
@@ -212,12 +265,33 @@
   scene.add(sun);
   scene.add(sun.target);
 
-  var hemi = new THREE.HemisphereLight(0xbfd8f2, 0x8f7a55, 0.55);
+  var hemi = new THREE.HemisphereLight(VISUAL.hemiSky, VISUAL.hemiGround, VISUAL.hemiIntensity);
   scene.add(hemi);
-  var fill = new THREE.AmbientLight(0x223349, 0.7);
+  var fill = new THREE.AmbientLight(VISUAL.ambientColor, VISUAL.ambientIntensity);
   scene.add(fill);
 
-  // soft lens glare that rides the sun direction
+  // sun disc + soft lens glare that ride the sun direction
+  var sunDisc = (function () {
+    var tex = canvasTexture(makeCanvas(128, 128, function (ctx, w, h) {
+      var g = ctx.createRadialGradient(w / 2, h / 2, 1, w / 2, h / 2, w / 2);
+      g.addColorStop(0, "rgba(255,252,214,1)");
+      g.addColorStop(0.22, "rgba(255,237,128,0.92)");
+      g.addColorStop(0.42, "rgba(255,198,70,0.35)");
+      g.addColorStop(1, "rgba(255,198,70,0)");
+      ctx.fillStyle = g;
+      ctx.fillRect(0, 0, w, h);
+    }));
+    var sp = new THREE.Sprite(new THREE.SpriteMaterial({
+      map: tex, transparent: true, opacity: 0.82, depthWrite: false, depthTest: false,
+      blending: THREE.AdditiveBlending, fog: false
+    }));
+    sp.material.toneMapped = false;
+    sp.scale.set(130, 130, 1);
+    sp.renderOrder = 51;
+    scene.add(sp);
+    return sp;
+  })();
+
   var glare = (function () {
     var tex = canvasTexture(makeCanvas(128, 128, function (ctx, w, h) {
       var g = ctx.createRadialGradient(w / 2, h / 2, 2, w / 2, h / 2, w / 2);
@@ -449,7 +523,10 @@
     speckle(ctx, 2048, 1024, 9000, ["#00000022", "#ffffff14"], 0.6, 1.8);
 
     var geo = worldPlane(-130, -80, 130, SHORE_Z + 0.5, 64, 32, function () { return 0; });
-    var mesh = new THREE.Mesh(geo, new THREE.MeshStandardMaterial({ map: W.texture(), roughness: 0.96 }));
+    var mesh = new THREE.Mesh(geo, new THREE.MeshStandardMaterial({
+      map: W.texture(), roughness: 0.92,
+      normalMap: grainNormalTexture(48, 22, 1.4), normalScale: new THREE.Vector2(0.09, 0.09)
+    }));
     mesh.position.y = 0.02;
     mesh.receiveShadow = true;
     scene.add(mesh);
@@ -844,46 +921,111 @@
   var loungers = [];   // player/NPC-usable: {x, z, ry, taken}
 
   (function () {
-    function facadeTexture(floors, cols, tint) {
+    function facadeTexture(floors, cols, tint, balcony) {
       return canvasTexture(makeCanvas(512, 1024, function (ctx, w, h) {
-        ctx.fillStyle = tint;
+        var sky = ctx.createLinearGradient(0, 0, 0, h);
+        sky.addColorStop(0, tint);
+        sky.addColorStop(1, "#fff3da");
+        ctx.fillStyle = sky;
         ctx.fillRect(0, 0, w, h);
         var fh = h / floors, cw = w / cols;
         for (var f = 0; f < floors; f++) {
-          ctx.fillStyle = "rgba(255,255,255,0.55)";
-          ctx.fillRect(0, f * fh + fh * 0.82, w, fh * 0.10);
+          if (balcony) {
+            ctx.fillStyle = "rgba(255,255,255,0.72)";
+            ctx.fillRect(0, f * fh + fh * 0.78, w, fh * 0.13);
+            ctx.fillStyle = "rgba(50,80,95,0.2)";
+            ctx.fillRect(0, f * fh + fh * 0.91, w, 1.5);
+          }
           for (var c = 0; c < cols; c++) {
             var lit = Math.random();
-            var glass = lit > 0.93 ? "#ffd98a" : (lit > 0.5 ? "#9fc4d8" : "#7ba9c2");
-            ctx.fillStyle = glass;
-            ctx.fillRect(c * cw + cw * 0.14, f * fh + fh * 0.16, cw * 0.72, fh * 0.6);
-            ctx.fillStyle = "rgba(255,255,255,0.25)";
-            ctx.fillRect(c * cw + cw * 0.14, f * fh + fh * 0.16, cw * 0.72, fh * 0.16);
-            ctx.strokeStyle = "rgba(60,60,70,0.5)";
-            ctx.strokeRect(c * cw + cw * 0.14, f * fh + fh * 0.16, cw * 0.72, fh * 0.6);
+            var g = ctx.createLinearGradient(c * cw, f * fh, c * cw + cw, f * fh + fh);
+            g.addColorStop(0, lit > 0.86 ? "#ffe59f" : "#48b6db");
+            g.addColorStop(0.55, lit > 0.86 ? "#ffd06f" : "#147ca8");
+            g.addColorStop(1, "#07587e");
+            ctx.fillStyle = g;
+            ctx.fillRect(c * cw + cw * 0.16, f * fh + fh * 0.15, cw * 0.68, fh * 0.52);
+            ctx.fillStyle = "rgba(255,255,255,0.42)";
+            ctx.fillRect(c * cw + cw * 0.2, f * fh + fh * 0.17, cw * 0.18, fh * 0.46);
           }
         }
       }));
     }
-    function tower(x, z, w, d, h, tint) {
-      var faceW = facadeTexture(Math.round(h / 3.4), Math.round(w / 2.6), tint);
-      var faceD = facadeTexture(Math.round(h / 3.4), Math.round(d / 2.6), tint);
-      var roof = new THREE.MeshStandardMaterial({ color: 0x8e8478, roughness: 0.9 });
-      var mw = new THREE.MeshStandardMaterial({ map: faceW, roughness: 0.55 });
-      var md = new THREE.MeshStandardMaterial({ map: faceD, roughness: 0.55 });
+    function rainbowMuralTexture() {
+      return canvasTexture(makeCanvas(256, 1024, function (ctx, w, h) {
+        ctx.fillStyle = "#f7e8cf";
+        ctx.fillRect(0, 0, w, h);
+        var cols = ["#f34235", "#ff8b24", "#ffd139", "#39b95d", "#1aa7df", "#2d57c8", "#8a4ecf"];
+        for (var i = 0; i < cols.length; i++) {
+          ctx.strokeStyle = cols[i];
+          ctx.lineWidth = 18;
+          ctx.beginPath();
+          ctx.arc(w * 0.5, h * 0.95, h * (0.78 - i * 0.035), Math.PI * 1.05, Math.PI * 1.95);
+          ctx.stroke();
+        }
+        ctx.fillStyle = "rgba(255,255,255,0.48)";
+        for (var y = 18; y < h; y += 34) ctx.fillRect(0, y, w, 2);
+        ctx.strokeStyle = "rgba(80,80,70,0.25)";
+        ctx.strokeRect(8, 8, w - 16, h - 16);
+      }));
+    }
+    function tower(x, z, w, d, h, tint, name) {
+      var faceW = facadeTexture(Math.round(h / 3.2), Math.round(w / 2.4), tint, true);
+      var faceD = facadeTexture(Math.round(h / 3.2), Math.round(d / 2.4), tint, true);
+      var roof = new THREE.MeshStandardMaterial({ color: 0x786e62, roughness: 0.78 });
+      var mw = new THREE.MeshStandardMaterial({ map: faceW, roughness: 0.42, metalness: 0.02 });
+      var md = new THREE.MeshStandardMaterial({ map: faceD, roughness: 0.42, metalness: 0.02 });
       var mesh = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), [md, md, roof, roof, mw, mw]);
       mesh.position.set(x, h / 2, z);
       mesh.castShadow = true;
       scene.add(mesh);
-      var cap = new THREE.Mesh(new THREE.BoxGeometry(w * 0.5, 3, d * 0.6),
-        new THREE.MeshStandardMaterial({ color: 0x6e6459, roughness: 0.9 }));
+      var cap = new THREE.Mesh(new THREE.BoxGeometry(w * 0.54, 3, d * 0.66), roof);
       cap.position.set(x, h + 1.5, z);
+      cap.castShadow = true;
       scene.add(cap);
       addCollider(x, z, w / 2 + 1, d / 2 + 1);
+      return mesh;
     }
-    tower(-46, -54, 24, 16, 74, "#e8ddcb");
-    tower(2, -60, 30, 17, 92, "#efe6d6");
-    tower(50, -52, 22, 15, 64, "#e2d5c0");
+    function rainbowTower(x, z) {
+      var h = 112, w = 26, d = 16;
+      var glass = facadeTexture(31, 10, "#f3e1c7", true);
+      var mural = rainbowMuralTexture();
+      var roof = new THREE.MeshStandardMaterial({ color: 0x6f655d, roughness: 0.72 });
+      var mg = new THREE.MeshStandardMaterial({ map: glass, roughness: 0.35, metalness: 0.04 });
+      var mm = new THREE.MeshStandardMaterial({ map: mural, roughness: 0.5 });
+      var mesh = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), [mm, mm, roof, roof, mg, mg]);
+      mesh.position.set(x, h / 2, z);
+      mesh.castShadow = true;
+      scene.add(mesh);
+      var crown = new THREE.Mesh(new THREE.BoxGeometry(w * 0.66, 4, d * 0.76), roof);
+      crown.position.set(x, h + 2, z);
+      crown.castShadow = true;
+      scene.add(crown);
+      addCollider(x, z, w / 2 + 1, d / 2 + 1);
+    }
+
+    // Hilton Hawaiian Village-inspired layout: Rainbow Tower by the lagoon,
+    // plus Tapa/Aliʻi/Lagoon/Diamond Head-style towers stepping inland.
+    rainbowTower(-6, -57);
+    tower(-48, -58, 24, 17, 82, "#ead7bd", "Alii");
+    tower(34, -63, 31, 18, 96, "#f0dfc5", "Tapa");
+    tower(67, -47, 22, 16, 70, "#e7d5bd", "Diamond Head");
+
+    // Duke Kahanamoku-style saltwater lagoon between the village and beach
+    var lagoon = new THREE.Group();
+    var lagoonWater = new THREE.Mesh(new THREE.CircleGeometry(1, 64),
+      new THREE.MeshStandardMaterial({ color: 0x19aeca, roughness: 0.1, metalness: 0.04, transparent: true, opacity: 0.88 }));
+    lagoonWater.scale.set(19, 10, 1);
+    lagoonWater.rotation.x = -Math.PI / 2;
+    lagoonWater.position.y = 0.055;
+    lagoon.add(lagoonWater);
+    var lagoonSand = new THREE.Mesh(new THREE.RingGeometry(1.02, 1.18, 64),
+      new THREE.MeshStandardMaterial({ color: 0xf2dfad, roughness: 0.84 }));
+    lagoonSand.scale.set(19, 10, 1);
+    lagoonSand.rotation.x = -Math.PI / 2;
+    lagoonSand.position.y = 0.05;
+    lagoon.add(lagoonSand);
+    lagoon.position.set(-63, 0, 26);
+    scene.add(lagoon);
 
     // open-air lobby hale
     var lob = new THREE.Group();
@@ -927,14 +1069,14 @@
       ctx.strokeRect(14, 14, w - 28, h - 28);
       ctx.textAlign = "center";
       ctx.fillStyle = "#ffe9b8";
-      ctx.font = "900 92px Georgia, 'Times New Roman', serif";
-      ctx.fillText("WAIKIKI VILLAGE", w / 2, 128);
-      ctx.font = "700 58px Georgia, 'Times New Roman', serif";
+      ctx.font = "900 82px Georgia, 'Times New Roman', serif";
+      ctx.fillText("RAINBOW VILLAGE", w / 2, 126);
+      ctx.font = "700 52px Georgia, 'Times New Roman', serif";
       ctx.fillStyle = "#e8c97a";
-      ctx.fillText("R  E  S  O  R  T", w / 2, 208);
+      ctx.fillText("W A I K I K I", w / 2, 202);
       ctx.font = "italic 34px Georgia, serif";
       ctx.fillStyle = "#ffd9a0";
-      ctx.fillText("e komo mai — welcome", w / 2, 258);
+      ctx.fillText("lagoon • beach • aloha", w / 2, 256);
       drawFlower(ctx, 78, h / 2, 52, "#ff6ea0", "#ffd166");
       drawFlower(ctx, w - 78, h / 2, 52, "#ff6ea0", "#ffd166");
     });
@@ -962,24 +1104,24 @@
     arch.position.set(0, 0, -12.5);
     scene.add(arch);
 
-    // swimming pool (no collider — you can swim in it)
+    // Super Pool-style bright pool deck (no collider — you can swim in it)
     var pool = new THREE.Group();
-    var pw = 22, pd = 12;
+    var pw = 24, pd = 13;
     var poolTex = canvasTexture(makeCanvas(256, 256, function (ctx, w, h) {
-      ctx.fillStyle = "#37b8d2";
+      ctx.fillStyle = "#18bfe5";
       ctx.fillRect(0, 0, w, h);
-      ctx.strokeStyle = "rgba(255,255,255,0.22)";
+      ctx.strokeStyle = "rgba(255,255,255,0.26)";
       for (var x = 0; x < w; x += 20) { ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, h); ctx.stroke(); }
       for (var y = 0; y < h; y += 20) { ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(w, y); ctx.stroke(); }
-      speckle(ctx, w, h, 300, ["#7fe0ef", "#1d95b0"], 2, 9);
+      speckle(ctx, w, h, 420, ["#a9f7ff", "#068cb9"], 2, 9);
     }));
     var pwater = new THREE.Mesh(new THREE.PlaneGeometry(pw, pd),
-      new THREE.MeshStandardMaterial({ map: poolTex, transparent: true, opacity: 0.92, roughness: 0.12, metalness: 0.05 }));
+      new THREE.MeshStandardMaterial({ map: poolTex, transparent: true, opacity: 0.94, roughness: 0.08, metalness: 0.06 }));
     pwater.rotation.x = -Math.PI / 2;
     pwater.position.y = 0.07;
     pwater.receiveShadow = true;
     pool.add(pwater);
-    var copMat = new THREE.MeshStandardMaterial({ color: 0xe8dfca, roughness: 0.7 });
+    var copMat = new THREE.MeshStandardMaterial({ color: 0xf4e8cf, roughness: 0.65 });
     [[0, pd / 2 + 0.5, pw + 2.4, 1], [0, -pd / 2 - 0.5, pw + 2.4, 1], [pw / 2 + 0.5, 0, 1, pd], [-pw / 2 - 0.5, 0, 1, pd]]
       .forEach(function (s) {
         var m = new THREE.Mesh(new THREE.BoxGeometry(s[2], 0.26, s[3]), copMat);
@@ -1197,41 +1339,43 @@
   // ------------------------------------------------------------- sky extras
   var clouds = [];
   (function () {
-    // trade-wind cumulus: flat bases, puffy tops
-    var tex = canvasTexture(makeCanvas(256, 128, function (ctx, w, h) {
-      ctx.clearRect(0, 0, w, h);
-      var baseY = h * 0.72;
-      for (var i = 0; i < 30; i++) {
-        var x = w * 0.5 + (Math.random() - 0.5) * w * 0.72;
-        var r = 12 + Math.random() * 24;
-        var y = baseY - Math.abs((Math.random() - 0.5)) * h * 0.52 - r * 0.3;
-        if (y > baseY - r * 0.4) y = baseY - r * 0.4;
-        var g = ctx.createRadialGradient(x, y, 1, x, y, r);
-        g.addColorStop(0, "rgba(255,253,248,0.75)");
-        g.addColorStop(0.8, "rgba(252,248,240,0.28)");
-        g.addColorStop(1, "rgba(252,248,240,0)");
-        ctx.fillStyle = g;
-        ctx.fillRect(0, 0, w, h);
-      }
-      // shave the bottom flat
-      ctx.clearRect(0, baseY + 6, w, h - baseY - 6);
-      var fade = ctx.createLinearGradient(0, baseY - 8, 0, baseY + 6);
-      fade.addColorStop(0, "rgba(0,0,0,0)");
-      fade.addColorStop(1, "rgba(0,0,0,1)");
-      ctx.globalCompositeOperation = "destination-out";
-      ctx.fillStyle = fade;
-      ctx.fillRect(0, baseY - 8, w, 14);
-      ctx.globalCompositeOperation = "source-over";
-    }));
-    for (var i = 0; i < 12; i++) {
-      var sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex, transparent: true, depthWrite: false, fog: false }));
+    // layered trade-wind cumulus: small bright puff sprites over a flat blue horizon
+    function cloudTexture(seed) {
+      return canvasTexture(makeCanvas(320, 160, function (ctx, w, h) {
+        ctx.clearRect(0, 0, w, h);
+        var baseY = h * (0.66 + seed * 0.03);
+        for (var i = 0; i < 42; i++) {
+          var x = w * 0.5 + (Math.random() - 0.5) * w * 0.82;
+          var r = 16 + Math.random() * 32;
+          var y = baseY - Math.abs(Math.random() - 0.5) * h * 0.58 - r * 0.25;
+          var g = ctx.createRadialGradient(x, y, 1, x, y, r);
+          g.addColorStop(0, "rgba(255,255,255,0.96)");
+          g.addColorStop(0.52, "rgba(255,252,238,0.58)");
+          g.addColorStop(0.82, "rgba(214,235,248,0.22)");
+          g.addColorStop(1, "rgba(214,235,248,0)");
+          ctx.fillStyle = g;
+          ctx.fillRect(0, 0, w, h);
+        }
+        var shadow = ctx.createLinearGradient(0, baseY - 22, 0, baseY + 12);
+        shadow.addColorStop(0, "rgba(255,255,255,0)");
+        shadow.addColorStop(1, "rgba(83,137,169,0.18)");
+        ctx.fillStyle = shadow;
+        ctx.fillRect(0, baseY - 22, w, 34);
+        ctx.clearRect(0, baseY + 11, w, h - baseY - 11);
+      }));
+    }
+    var textures = [cloudTexture(0), cloudTexture(1), cloudTexture(2)];
+    for (var i = 0; i < 18; i++) {
+      var sp = new THREE.Sprite(new THREE.SpriteMaterial({
+        map: textures[i % textures.length], transparent: true, depthWrite: false, fog: false
+      }));
       sp.material.toneMapped = false;
-      sp.material.opacity = 0.5 + Math.random() * 0.25;
-      var a = Math.random() * 6.283, d = 950 + Math.random() * 550;
-      sp.position.set(Math.cos(a) * d, 180 + Math.random() * 160, Math.sin(a) * d);
-      var s = 240 + Math.random() * 160;
-      sp.scale.set(s, s * 0.5, 1);
-      sp.userData.speed = 1.2 + Math.random() * 1.6;
+      sp.material.opacity = 0.62 + Math.random() * 0.22;
+      var a = Math.random() * 6.283, d = 820 + Math.random() * 760;
+      sp.position.set(Math.cos(a) * d, 210 + Math.random() * 190, Math.sin(a) * d);
+      var sc = 210 + Math.random() * 220;
+      sp.scale.set(sc * (1.55 + Math.random() * 0.5), sc * 0.58, 1);
+      sp.userData.speed = 0.7 + Math.random() * 1.35;
       scene.add(sp);
       clouds.push(sp);
     }
@@ -1336,12 +1480,12 @@
     var scale = opts.scale || 1;
     var slim = !!opts.slim;
     var bellyF = opts.belly || 1, chestF = opts.chest || 1;
-    var skin = new THREE.MeshStandardMaterial({ color: opts.skin || 0xc57f45, roughness: 0.55 });
-    var skinD = new THREE.MeshStandardMaterial({ color: 0x9c6234, roughness: 0.6 });
-    var hairMat = new THREE.MeshStandardMaterial({ color: opts.hairColor || 0x14100e, roughness: 0.35 });
-    var fabric = new THREE.MeshStandardMaterial({ color: opts.shirt || 0xff8f4a, roughness: 0.8 });
-    var shorts = new THREE.MeshStandardMaterial({ color: opts.shorts || 0x3a6ea5, roughness: 0.8 });
-    var mawashiMat = new THREE.MeshStandardMaterial({ color: opts.mawashi || 0xf0ead8, roughness: 0.75 });
+    var skin = texturedStandard(opts.skin || 0xc57f45, 0.58, 1.7);
+    var skinD = texturedStandard(0x9c6234, 0.62, 1.6);
+    var hairMat = texturedStandard(opts.hairColor || 0x14100e, 0.42, 1.2);
+    var fabric = texturedStandard(opts.shirt || 0xff8f4a, 0.84, 2.8);
+    var shorts = texturedStandard(opts.shorts || 0x3a6ea5, 0.82, 2.5);
+    var mawashiMat = texturedStandard(opts.mawashi || 0xf0ead8, 0.78, 2.2);
     var isRikishi = opts.outfit === "rikishi";
     var isDress = opts.outfit === "dress";
     var isKimono = opts.outfit === "kimono";
@@ -1405,9 +1549,16 @@
       var knot = new THREE.Mesh(new THREE.BoxGeometry(0.3, 0.28, 0.22), mawashiMat);
       knot.position.set(0, 0.1, -0.9 * bellyF);
       torso.add(knot);
+      if (opts.heyaMark) {
+        var tag = new THREE.Mesh(new THREE.CircleGeometry(0.13, 18),
+          new THREE.MeshStandardMaterial({ color: 0xf8f1d8, roughness: 0.72, side: THREE.DoubleSide }));
+        tag.position.set(0, 0.16, 0.88 * bellyF);
+        tag.rotation.x = -0.2;
+        torso.add(tag);
+      }
       if (opts.tsuna) {
         // the yokozuna's white rope, tied at the back, shide strips at the front
-        var tsunaMat = new THREE.MeshStandardMaterial({ color: 0xfaf6ea, roughness: 0.85 });
+        var tsunaMat = texturedStandard(0xfaf6ea, 0.86, 2.4);
         var rope = new THREE.Mesh(new THREE.TorusGeometry(0.86, 0.115, 10, 30), tsunaMat);
         rope.scale.set(1.08 * bellyF, 1, 1.0 * bellyF);
         rope.rotation.x = Math.PI / 2;
@@ -1554,6 +1705,31 @@
         pupil.castShadow = false;
         pupil.position.set(ex, 0.15, 0.385);
         headP.add(pupil);
+      });
+    }
+    var noseMat = texturedStandard(opts.skin || 0xc57f45, 0.56, 1.3);
+    var nose = new THREE.Mesh(new THREE.ConeGeometry(0.075, 0.22, 8), noseMat);
+    nose.rotation.x = Math.PI / 2;
+    nose.position.set(0, 0.045, 0.43);
+    nose.castShadow = false;
+    headP.add(nose);
+    var lipMat = new THREE.MeshStandardMaterial({ color: isRikishi ? 0x7d3e32 : 0x8d4637, roughness: 0.62 });
+    var mouth = new THREE.Mesh(new THREE.BoxGeometry(isRikishi ? 0.2 : 0.17, 0.026, 0.035), lipMat);
+    mouth.position.set(0, -0.125, 0.405);
+    headP.add(mouth);
+    [-0.19, 0.19].forEach(function (cx) {
+      var cheek = orb(skin, 0.075, 1.4, 0.42, 0.34);
+      cheek.castShadow = false;
+      cheek.position.set(cx, -0.015, 0.39);
+      headP.add(cheek);
+    });
+    if (isRikishi) {
+      var eyelidMat = new THREE.MeshStandardMaterial({ color: opts.skin || 0xc57f45, roughness: 0.6 });
+      [-0.15, 0.15].forEach(function (ex) {
+        var lid = new THREE.Mesh(new THREE.BoxGeometry(0.16, 0.028, 0.028), eyelidMat);
+        lid.position.set(ex, 0.195, 0.405);
+        lid.rotation.z = ex < 0 ? 0.08 : -0.08;
+        headP.add(lid);
       });
     }
     var browAng = opts.brow !== undefined ? opts.brow : 0.14;
@@ -2018,7 +2194,7 @@
       var person = buildPerson({
         scale: w.scale, skin: w.skin, belly: w.belly, chest: 1.05,
         outfit: "rikishi", mawashi: w.mawashi || 0xf0ead8,
-        hair: "topknot", brow: 0.3,
+        hair: "topknot", brow: 0.3, heyaMark: w.stable === "Futagoyama" || w.name === "Yoshii",
         label: w.name, rank: w.rank
       });
       var st = stations[i % stations.length];
@@ -2057,7 +2233,7 @@
       var person = buildPerson({
         scale: w.scale, skin: w.skin, belly: w.belly,
         outfit: "rikishi", mawashi: 0x2a2a33,
-        hair: "topknot", brow: 0.18,
+        hair: "topknot", brow: 0.18, heyaMark: true,
         label: w.name, rank: w.rank
       });
       if (i === 0) {
@@ -2495,6 +2671,7 @@
     keys[e.code] = true;
     if (e.code === "Space") { e.preventDefault(); triggerStomp(); }
     if (e.code === "Tab") { e.preventDefault(); if (started) toggleChecklist(); }
+    if (e.code === "KeyV") { e.preventDefault(); if (started) toggleResortMap(); }
     if (started) {
       if (e.code === "KeyM") audio.toggle();
       if (e.code === "KeyF") doAloha();
@@ -2822,6 +2999,106 @@
     listEl.style.display = listEl.style.display === "block" ? "none" : "block";
   }
 
+  var resortMapEl = document.getElementById("resort-map");
+  var resortMapCanvas = document.getElementById("resort-map-canvas");
+  var resortMapDrawn = false;
+  function drawResortMap() {
+    if (!resortMapCanvas || resortMapDrawn) return;
+    resortMapDrawn = true;
+    var ctx = resortMapCanvas.getContext("2d"), w = resortMapCanvas.width, h = resortMapCanvas.height;
+    ctx.clearRect(0, 0, w, h);
+    var ocean = ctx.createLinearGradient(0, h * 0.55, 0, h);
+    ocean.addColorStop(0, "#6ed8ed"); ocean.addColorStop(0.55, "#1598c6"); ocean.addColorStop(1, "#046797");
+    ctx.fillStyle = ocean; ctx.fillRect(0, h * 0.55, w, h * 0.45);
+    var sand = ctx.createLinearGradient(0, h * 0.47, 0, h * 0.68);
+    sand.addColorStop(0, "#fff0c4"); sand.addColorStop(1, "#d9b56f");
+    ctx.fillStyle = sand;
+    ctx.beginPath(); ctx.moveTo(0, h * 0.58);
+    ctx.bezierCurveTo(w * 0.26, h * 0.49, w * 0.55, h * 0.57, w, h * 0.47);
+    ctx.lineTo(w, h * 0.74); ctx.bezierCurveTo(w * 0.56, h * 0.8, w * 0.24, h * 0.7, 0, h * 0.77); ctx.closePath(); ctx.fill();
+    var lawn = ctx.createLinearGradient(0, 0, 0, h * 0.56);
+    lawn.addColorStop(0, "#4e7f41"); lawn.addColorStop(1, "#75a858");
+    ctx.fillStyle = lawn; ctx.fillRect(0, 0, w, h * 0.58);
+    speckle(ctx, w, h * 0.58, 9500, ["rgba(32,88,43,.22)", "rgba(255,239,176,.16)", "rgba(15,64,38,.18)"], 0.6, 2.4);
+    function path(points, color, width) {
+      ctx.strokeStyle = color; ctx.lineWidth = width; ctx.lineCap = "round"; ctx.lineJoin = "round";
+      ctx.beginPath(); ctx.moveTo(points[0][0], points[0][1]);
+      for (var i = 1; i < points.length; i++) ctx.lineTo(points[i][0], points[i][1]);
+      ctx.stroke();
+    }
+    path([[80,200],[360,250],[620,290],[950,270],[1260,240],[1640,220]], "rgba(232,212,169,.92)", 26);
+    path([[230,110],[410,330],[520,520],[650,640]], "rgba(232,212,169,.92)", 22);
+    path([[1180,120],[1120,300],[970,480],[860,630]], "rgba(232,212,169,.92)", 22);
+    function lagoon(cx, cy, rx, ry, label) {
+      var g = ctx.createRadialGradient(cx - rx * .3, cy - ry * .35, 4, cx, cy, rx);
+      g.addColorStop(0, "#b7fbff"); g.addColorStop(.35, "#39c8dc"); g.addColorStop(1, "#0784ad");
+      ctx.fillStyle = "rgba(245,222,158,.9)"; ctx.beginPath(); ctx.ellipse(cx, cy, rx + 28, ry + 22, -0.1, 0, 6.283); ctx.fill();
+      ctx.fillStyle = g; ctx.beginPath(); ctx.ellipse(cx, cy, rx, ry, -0.1, 0, 6.283); ctx.fill();
+      labelAt(label, cx, cy + ry + 38, "#075f7f", 22, "800");
+    }
+    function tower(x, y, ww, hh, rot, label, color, rainbow) {
+      ctx.save(); ctx.translate(x, y); ctx.rotate(rot);
+      ctx.shadowColor = "rgba(24,45,58,.34)"; ctx.shadowBlur = 18; ctx.shadowOffsetY = 14;
+      var grad = ctx.createLinearGradient(-ww/2, -hh/2, ww/2, hh/2);
+      grad.addColorStop(0, color); grad.addColorStop(.5, "#f8ead3"); grad.addColorStop(1, "#729cb0");
+      ctx.fillStyle = grad; ctx.fillRect(-ww/2, -hh/2, ww, hh);
+      ctx.shadowColor = "transparent";
+      ctx.strokeStyle = "rgba(30,62,78,.4)"; ctx.lineWidth = 3; ctx.strokeRect(-ww/2, -hh/2, ww, hh);
+      ctx.strokeStyle = "rgba(255,255,255,.72)"; ctx.lineWidth = 2;
+      for (var yy = -hh/2 + 16; yy < hh/2; yy += 17) { ctx.beginPath(); ctx.moveTo(-ww/2, yy); ctx.lineTo(ww/2, yy); ctx.stroke(); }
+      ctx.strokeStyle = "rgba(5,82,116,.34)";
+      for (var xx = -ww/2 + 18; xx < ww/2; xx += 19) { ctx.beginPath(); ctx.moveTo(xx, -hh/2); ctx.lineTo(xx, hh/2); ctx.stroke(); }
+      if (rainbow) {
+        var cols = ["#e83b37", "#f78b28", "#ffd23c", "#36b65d", "#1da4dc", "#5e45bd"];
+        for (var r = 0; r < cols.length; r++) { ctx.strokeStyle = cols[r]; ctx.lineWidth = 7; ctx.beginPath(); ctx.arc(0, hh/2 - 8, 86 - r * 9, Math.PI * 1.06, Math.PI * 1.94); ctx.stroke(); }
+      }
+      ctx.restore();
+      labelAt(label, x, y + hh * .55 + 24, "#173145", 23, "900");
+    }
+    function smallFeature(x, y, ww, hh, label, color) {
+      ctx.save(); ctx.shadowColor = "rgba(24,45,58,.22)"; ctx.shadowBlur = 12; ctx.shadowOffsetY = 8;
+      ctx.fillStyle = color; ctx.strokeStyle = "rgba(30,62,78,.25)"; ctx.lineWidth = 2;
+      roundRect(x - ww/2, y - hh/2, ww, hh, 14); ctx.fill(); ctx.stroke(); ctx.restore();
+      labelAt(label, x, y + hh/2 + 24, "#173145", 20, "800");
+    }
+    function labelAt(text, x, y, color, size, weight) {
+      ctx.save(); ctx.font = (weight || "800") + " " + (size || 20) + "px Avenir Next, Segoe UI, sans-serif";
+      ctx.textAlign = "center"; ctx.lineWidth = 5; ctx.strokeStyle = "rgba(255,255,245,.85)"; ctx.fillStyle = color || "#173145";
+      ctx.strokeText(text, x, y); ctx.fillText(text, x, y); ctx.restore();
+    }
+    function roundRect(x, y, ww, hh, r) {
+      ctx.beginPath(); ctx.moveTo(x + r, y); ctx.lineTo(x + ww - r, y); ctx.quadraticCurveTo(x + ww, y, x + ww, y + r);
+      ctx.lineTo(x + ww, y + hh - r); ctx.quadraticCurveTo(x + ww, y + hh, x + ww - r, y + hh);
+      ctx.lineTo(x + r, y + hh); ctx.quadraticCurveTo(x, y + hh, x, y + hh - r); ctx.lineTo(x, y + r); ctx.quadraticCurveTo(x, y, x + r, y); ctx.closePath();
+    }
+    lagoon(440, 600, 205, 92, "DUKE KAHANAMOKU LAGOON");
+    tower(705, 430, 150, 360, -0.06, "RAINBOW TOWER", "#f1d2ae", true);
+    tower(520, 315, 135, 250, 0.12, "ALIʻI TOWER", "#ead6ba", false);
+    tower(960, 300, 190, 330, -0.08, "TAPA TOWER", "#f1dec2", false);
+    tower(1160, 445, 130, 255, 0.06, "LAGOON TOWER", "#e7d3ba", false);
+    tower(1325, 300, 130, 275, -0.05, "KALIA / GRAND WAIKIKIAN", "#eadcc8", false);
+    tower(1350, 565, 120, 230, 0.04, "DIAMOND HEAD TOWER", "#e6d0b6", false);
+    smallFeature(860, 580, 220, 92, "SUPER POOL", "#38cce6");
+    smallFeature(1010, 500, 230, 110, "RAINBOW BAZAAR", "#ffdf92");
+    smallFeature(740, 250, 180, 76, "MAIN LOBBY", "#fff1ca");
+    smallFeature(1200, 170, 260, 72, "TAPA POOL / CONCOURSE", "#60d4df");
+    labelAt("GREAT LAWN", 610, 740, "#2d6d35", 26, "900");
+    labelAt("VILLAGE GREEN", 1020, 710, "#2d6d35", 25, "900");
+    labelAt("PACIFIC OCEAN", 1290, 880, "#f5fdff", 42, "900");
+    labelAt("ALA MOANA BLVD", 430, 100, "#223b4b", 26, "900");
+    labelAt("RAINBOW DRIVE", 1400, 205, "#223b4b", 22, "900");
+    labelAt("LAGOON DRIVE", 250, 365, "#223b4b", 22, "900");
+    labelAt("PORT HILTON", 168, 688, "#075f7f", 22, "900");
+    ctx.strokeStyle = "rgba(255,255,255,.42)"; ctx.lineWidth = 3;
+    for (var wave = 0; wave < 7; wave++) path([[40 + wave * 220, 845 + Math.sin(wave) * 12], [150 + wave * 220, 820], [260 + wave * 220, 845]], "rgba(255,255,255,.34)", 5);
+  }
+  function toggleResortMap() {
+    drawResortMap();
+    resortMapEl.classList.toggle("show");
+  }
+  document.getElementById("map-chip").addEventListener("click", toggleResortMap);
+  if (resortMapEl) resortMapEl.addEventListener("click", function (e) { if (e.target === resortMapEl) toggleResortMap(); });
+
   var toastEl = document.getElementById("toast");
   var toastTimer = null;
   function toast(msg) {
@@ -2894,6 +3171,7 @@
     if (kind === "pog") props.cup.visible = true;
     else props.bowl.visible = true;
     audio.munch();
+    toast(kind === "pog" ? "🧃 Fresh POG incoming..." : (kind === "shaveice" ? "🍧 Scooping rainbow shave ice..." : "🍲 Ladling chanko..."));
   }
 
   var interactables = [
@@ -2951,6 +3229,8 @@
       line = a.coachLines[(Math.random() * a.coachLines.length) | 0];
     }
     showBubble(a, line, 4.6);
+    activityT = 0;
+    shake = Math.max(shake, 0.035);
     if (a.kind === "rikishi" || a.kind === "master") checkTask("talkR");
     if (a.kind === "tourist") checkTask("talkG");
     needs.fun = Math.min(100, needs.fun + 6);
@@ -2960,6 +3240,7 @@
     if (stomp.t < 0 && started && !swimming && activity !== "relax") {
       stopActivity();
       stomp.t = 0;
+      toast("🦶 Shiko! The whole beach feels it.");
     }
   }
   function doAloha() {
@@ -3045,6 +3326,7 @@
   // ------------------------------------------------------------------- loop
   var clock = new THREE.Clock();
   var camPos = new THREE.Vector3(0, 4, 26);
+  var camLook = new THREE.Vector3(0, 2.6, 0);
   var camSnap = false;
   var stompImpactDone = false;
   var hudAcc = 0;
@@ -3133,8 +3415,9 @@
       window.__applyPlayerPose();
       if (s > 0.56 && !stompImpactDone) {
         stompImpactDone = true;
-        shake = 0.55;
+        shake = 0.75;
         audio.thump();
+        setTimeout(function () { audio.thump(); }, 95);
         needs.energy = Math.max(0, needs.energy - 2);
         needs.fun = Math.min(100, needs.fun + 3);
         if (inWater) {
@@ -3142,7 +3425,8 @@
           spawnRipple(sumo.position.x + 0.8, sumo.position.z + 0.4);
           audio.splash();
         } else {
-          burstDust(sumo.position.x + Math.sin(facing + 0.4), gy, sumo.position.z + Math.cos(facing + 0.4), 9, 2.6);
+          burstDust(sumo.position.x + Math.sin(facing + 0.4), gy, sumo.position.z + Math.cos(facing + 0.4), 16, 3.4);
+          stampFootprint(sumo.position.x + Math.sin(facing + 0.45), sumo.position.z + Math.cos(facing + 0.45), facing);
           if (sumo.position.z > SHORE_Z) checkTask("stomp");
         }
       }
@@ -3273,17 +3557,25 @@
     }
 
     // ---- camera
-    var targetY = sumo.position.y + (swimming ? 1.6 : 2.6);
-    var cx = sumo.position.x + Math.sin(camYaw) * Math.cos(camPitch) * camDist;
-    var cz = sumo.position.z + Math.cos(camYaw) * Math.cos(camPitch) * camDist;
+    var activityLow = activity === "relax" || swimming;
+    var targetY = sumo.position.y + (activityLow ? 1.65 : 2.55);
+    var lookAhead = moving ? Math.min(3.2, speedNow * 0.32) : 0.7;
+    var shoulder = swimming ? 0.25 : (moving ? 0.85 : 0.45);
+    var lookX = sumo.position.x + Math.sin(facing) * lookAhead + Math.sin(camYaw + Math.PI / 2) * shoulder;
+    var lookZ = sumo.position.z + Math.cos(facing) * lookAhead + Math.cos(camYaw + Math.PI / 2) * shoulder;
+    var cx = sumo.position.x + Math.sin(camYaw) * Math.cos(camPitch) * camDist + Math.sin(camYaw + Math.PI / 2) * shoulder;
+    var cz = sumo.position.z + Math.cos(camYaw) * Math.cos(camPitch) * camDist + Math.cos(camYaw + Math.PI / 2) * shoulder;
     var cy = targetY + Math.sin(camPitch) * camDist;
     var minY = groundY(cx, cz) + 0.6;
     if (cy < minY) cy = minY;
     if (cy < SEA_LEVEL + 0.5) cy = SEA_LEVEL + 0.5;
-    if (camSnap) { camPos.set(cx, cy, cz); camSnap = false; }
+    if (camSnap) { camPos.set(cx, cy, cz); camLook.set(lookX, targetY, lookZ); camSnap = false; }
     camPos.x += (cx - camPos.x) * Math.min(1, dt * 7);
     camPos.y += (cy - camPos.y) * Math.min(1, dt * 7);
     camPos.z += (cz - camPos.z) * Math.min(1, dt * 7);
+    camLook.x += (lookX - camLook.x) * Math.min(1, dt * 8);
+    camLook.y += (targetY - camLook.y) * Math.min(1, dt * 8);
+    camLook.z += (lookZ - camLook.z) * Math.min(1, dt * 8);
     camera.position.copy(camPos);
     if (shake > 0.005) {
       camera.position.x += (Math.random() - 0.5) * shake;
@@ -3291,10 +3583,11 @@
       camera.position.z += (Math.random() - 0.5) * shake;
       shake *= Math.pow(0.0018, dt);
     }
-    camera.lookAt(sumo.position.x, targetY, sumo.position.z);
+    camera.lookAt(camLook);
 
     sun.position.copy(sumo.position).addScaledVector(sunDir, 260);
     sun.target.position.copy(sumo.position);
+    sunDisc.position.copy(camera.position).addScaledVector(sunDir, 3200);
     glare.position.copy(camera.position).addScaledVector(sunDir, 3000);
 
     // ---- world life

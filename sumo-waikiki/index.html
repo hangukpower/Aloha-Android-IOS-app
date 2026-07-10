@@ -10,63 +10,80 @@
   body { font-family: "Avenir Next", "Segoe UI", -apple-system, BlinkMacSystemFont, Helvetica, Arial, sans-serif;
          -webkit-user-select: none; user-select: none; touch-action: none; }
   #c { position: fixed; inset: 0; width: 100%; height: 100%; display: block;
-       filter: saturate(1.14) contrast(1.05); }
+       filter: saturate(1.34) contrast(1.08) brightness(1.06); }
 
   #vignette { position: fixed; inset: 0; pointer-events: none; z-index: 5;
-    background: radial-gradient(ellipse at center, rgba(0,0,0,0) 55%, rgba(10,10,25,0.35) 100%); }
+    background:
+      radial-gradient(ellipse at 50% 40%, rgba(255,222,92,0.12) 0%, rgba(0,0,0,0) 40%),
+      radial-gradient(ellipse at center, rgba(0,0,0,0) 56%, rgba(7,13,28,0.42) 100%); }
 
-  .chip { position: fixed; z-index: 10; color: #fff; background: rgba(10, 20, 35, 0.55);
-    backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
-    border: 1px solid rgba(255,255,255,0.18); border-radius: 999px;
-    padding: 9px 18px; font-size: 14px; letter-spacing: 0.4px;
-    text-shadow: 0 1px 3px rgba(0,0,0,0.5); box-shadow: 0 4px 18px rgba(0,0,0,0.25); }
+  .chip { position: fixed; z-index: 10; color: #fff; background: linear-gradient(180deg, rgba(18, 38, 61, 0.72), rgba(7, 17, 31, 0.58));
+    backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);
+    border: 1px solid rgba(255,231,177,0.22); border-radius: 999px;
+    padding: 10px 18px; font-size: 14px; letter-spacing: 0.4px;
+    text-shadow: 0 1px 3px rgba(0,0,0,0.55); box-shadow: 0 10px 28px rgba(0,0,0,0.22), inset 0 1px 0 rgba(255,255,255,0.13); }
 
-  #title-chip { top: 16px; left: 16px; font-weight: 700; font-size: 15px; }
-  #title-chip .sub { font-weight: 400; opacity: 0.75; font-size: 12px; margin-left: 8px; }
+  #title-chip { top: 16px; left: 16px; font-weight: 900; font-size: 15px; text-transform: uppercase; }
+  #title-chip .sub { font-weight: 500; opacity: 0.78; font-size: 12px; margin-left: 8px; text-transform: none; }
   #zone-chip { bottom: 108px; left: 16px; font-size: 14px; transition: opacity .4s; }
   #sound-chip { top: 16px; right: 16px; cursor: pointer; font-size: 13px; }
   #sound-chip:hover { background: rgba(30, 50, 75, 0.7); }
   #help-chip { top: 62px; right: 16px; cursor: pointer; font-size: 13px; }
   #help-chip:hover { background: rgba(30, 50, 75, 0.7); }
+  #map-chip { top: 108px; right: 16px; cursor: pointer; font-size: 13px; }
+  #map-chip:hover { background: rgba(30, 50, 75, 0.7); }
 
   /* needs bars */
-  #needs { position: fixed; z-index: 10; left: 16px; bottom: 18px; width: 210px;
-    background: rgba(10, 20, 35, 0.55); backdrop-filter: blur(10px);
-    border: 1px solid rgba(255,255,255,0.18); border-radius: 16px; padding: 10px 14px; }
-  .need { display: flex; align-items: center; margin: 5px 0; }
-  .need .ic { width: 24px; font-size: 14px; }
-  .need .bar { flex: 1; height: 9px; border-radius: 5px; background: rgba(255,255,255,0.14); overflow: hidden; }
-  .need .fill { height: 100%; border-radius: 5px; transition: width .35s ease; }
+  #needs { position: fixed; z-index: 10; left: 16px; bottom: 18px; width: 230px;
+    background: linear-gradient(180deg, rgba(13, 31, 51, 0.78), rgba(7, 17, 31, 0.64)); backdrop-filter: blur(12px);
+    border: 1px solid rgba(255,231,177,0.2); border-radius: 18px; padding: 12px 15px;
+    box-shadow: 0 12px 32px rgba(0,0,0,0.24), inset 0 1px 0 rgba(255,255,255,0.12); }
+  .need { display: flex; align-items: center; margin: 7px 0; }
+  .need .ic { width: 28px; font-size: 16px; filter: drop-shadow(0 2px 2px rgba(0,0,0,.35)); }
+  .need .bar { flex: 1; height: 11px; border-radius: 999px; background: rgba(255,255,255,0.13); overflow: hidden; box-shadow: inset 0 1px 3px rgba(0,0,0,0.42); }
+  .need .fill { height: 100%; border-radius: 999px; transition: width .35s ease; box-shadow: 0 0 12px rgba(255,255,255,0.18); }
   #nb-hunger .fill { background: linear-gradient(90deg, #ff9a56, #ffd166); }
   #nb-fun .fill    { background: linear-gradient(90deg, #ff5e8a, #ff9ad5); }
   #nb-energy .fill { background: linear-gradient(90deg, #38c6a0, #9be15d); }
 
   /* contextual action prompt */
-  #prompt { position: fixed; z-index: 12; left: 50%; bottom: 86px; transform: translateX(-50%);
-    color: #fff; background: rgba(15, 30, 50, 0.72); border: 1px solid rgba(255,214,102,0.55);
-    border-radius: 12px; padding: 10px 20px; font-size: 15px; font-weight: 600; letter-spacing: 0.4px;
-    backdrop-filter: blur(8px); display: none; text-shadow: 0 1px 3px rgba(0,0,0,0.6); }
+  #prompt { position: fixed; z-index: 12; left: 50%; bottom: 88px; transform: translateX(-50%);
+    color: #fff; background: linear-gradient(180deg, rgba(38, 61, 83, 0.86), rgba(10, 24, 42, 0.78)); border: 1px solid rgba(255,214,102,0.68);
+    border-radius: 14px; padding: 11px 22px; font-size: 15px; font-weight: 800; letter-spacing: 0.45px;
+    backdrop-filter: blur(10px); display: none; text-shadow: 0 1px 3px rgba(0,0,0,0.65); box-shadow: 0 12px 34px rgba(0,0,0,.3); }
   #prompt b { color: #ffd166; }
 
   /* status toast */
-  #toast { position: fixed; z-index: 12; left: 50%; top: 74px; transform: translateX(-50%);
-    color: #fff; background: rgba(15, 30, 50, 0.75); border: 1px solid rgba(255,255,255,0.25);
-    border-radius: 12px; padding: 9px 20px; font-size: 14px; opacity: 0; transition: opacity .35s; }
+  #toast { position: fixed; z-index: 12; left: 50%; top: 76px; transform: translateX(-50%);
+    color: #fff; background: rgba(12, 28, 48, 0.84); border: 1px solid rgba(255,231,177,0.28);
+    border-radius: 999px; padding: 10px 22px; font-size: 14px; font-weight: 700; opacity: 0; transition: opacity .35s, transform .35s; box-shadow: 0 10px 28px rgba(0,0,0,.25); }
 
   /* speech bubble */
-  #bubble { position: fixed; z-index: 14; max-width: 320px; transform: translate(-50%, -100%);
-    background: rgba(255,255,255,0.96); color: #17293d; border-radius: 14px; padding: 10px 14px;
-    font-size: 13.5px; line-height: 1.45; box-shadow: 0 6px 24px rgba(0,0,0,0.35); display: none; }
+  #bubble { position: fixed; z-index: 14; max-width: 340px; transform: translate(-50%, -100%);
+    background: linear-gradient(180deg, rgba(255,255,255,0.98), rgba(255,246,225,0.96)); color: #17293d; border-radius: 16px; padding: 12px 16px;
+    font-size: 13.5px; line-height: 1.45; box-shadow: 0 12px 34px rgba(0,0,0,0.34); border: 1px solid rgba(122,70,38,.12); display: none; }
   #bubble .who { font-weight: 800; font-size: 12px; color: #b3543e; letter-spacing: 0.6px; margin-bottom: 2px; }
   #bubble:after { content: ""; position: absolute; left: 50%; bottom: -8px; transform: translateX(-50%);
     border: 9px solid transparent; border-top-color: rgba(255,255,255,0.96); border-bottom: none; }
 
   /* checklist */
-  #list { position: fixed; z-index: 16; right: 16px; top: 110px; width: 265px;
-    background: rgba(10, 22, 38, 0.82); backdrop-filter: blur(12px);
-    border: 1px solid rgba(255,255,255,0.2); border-radius: 16px; padding: 14px 18px;
-    color: #fff; font-size: 13.5px; line-height: 2; display: none; }
+  #list { position: fixed; z-index: 16; right: 16px; top: 154px; width: 282px;
+    background: linear-gradient(180deg, rgba(12, 30, 51, 0.9), rgba(6, 16, 29, 0.84)); backdrop-filter: blur(14px);
+    border: 1px solid rgba(255,231,177,0.22); border-radius: 18px; padding: 16px 19px;
+    color: #fff; font-size: 13.5px; line-height: 2.05; display: none; box-shadow: 0 18px 42px rgba(0,0,0,.28); }
   #list h3 { font-size: 13px; letter-spacing: 2px; color: #ffd166; margin-bottom: 6px; }
+
+  #resort-map { position: fixed; z-index: 18; left: 50%; top: 50%; width: min(940px, calc(100vw - 32px));
+    transform: translate(-50%, -50%) scale(.96); display: none; color: #173145;
+    background: linear-gradient(180deg, rgba(255,251,235,.98), rgba(232,244,242,.96));
+    border: 1px solid rgba(255,231,177,.55); border-radius: 22px; padding: 16px;
+    box-shadow: 0 28px 80px rgba(0,0,0,.48), inset 0 1px 0 rgba(255,255,255,.78); }
+  #resort-map.show { display: block; }
+  #resort-map .map-head { display: flex; align-items: baseline; justify-content: space-between; margin: 0 2px 10px; }
+  #resort-map h3 { font-size: 13px; letter-spacing: 2.3px; color: #0e6992; text-transform: uppercase; }
+  #resort-map .hint { font-size: 12px; color: rgba(23,49,69,.72); }
+  #resort-map-canvas { width: 100%; aspect-ratio: 1.72 / 1; display: block; border-radius: 16px;
+    border: 1px solid rgba(12,65,88,.18); box-shadow: inset 0 0 0 1px rgba(255,255,255,.45); }
   #list .item.done { color: #9be15d; text-decoration: line-through; text-decoration-color: rgba(155,225,93,.6); }
   #list .item .mark { display: inline-block; width: 20px; }
 
@@ -79,7 +96,9 @@
   /* splash */
   #splash { position: fixed; inset: 0; z-index: 100; display: flex; flex-direction: column;
     align-items: center; justify-content: center; text-align: center; cursor: pointer;
-    background: radial-gradient(ellipse at 50% 60%, rgba(8,20,40,0.55) 0%, rgba(5,10,25,0.88) 100%);
+    background:
+      radial-gradient(ellipse at 50% 48%, rgba(255,165,88,0.16) 0%, rgba(8,20,40,0.34) 42%, rgba(5,10,25,0.9) 100%),
+      linear-gradient(180deg, rgba(9,33,56,.74), rgba(4,8,20,.94));
     transition: opacity 0.9s ease; }
   #splash.hidden { opacity: 0; pointer-events: none; }
   #splash h1 { font-size: clamp(40px, 8.4vw, 100px); font-weight: 900; letter-spacing: 4px; line-height: 1.02;
@@ -89,8 +108,8 @@
   #splash h2 { color: #cfe8ff; font-weight: 300; letter-spacing: 5px; font-size: clamp(12px, 2.2vw, 20px);
     margin-top: 10px; text-transform: uppercase; }
   #splash .controls { margin-top: 30px; color: rgba(255,255,255,0.92); font-size: clamp(12px, 1.7vw, 15px);
-    line-height: 2.05; background: rgba(10,25,45,0.5); border: 1px solid rgba(255,255,255,0.15);
-    border-radius: 18px; padding: 16px 30px; backdrop-filter: blur(8px); }
+    line-height: 2.05; background: rgba(8,22,40,0.58); border: 1px solid rgba(255,231,177,0.18);
+    border-radius: 20px; padding: 18px 32px; backdrop-filter: blur(10px); box-shadow: 0 18px 48px rgba(0,0,0,.32); }
   #splash .controls b { color: #ffd166; font-weight: 700; }
   #splash .go { margin-top: 28px; color: #fff; font-size: clamp(14px, 2vw, 19px); font-weight: 700;
     letter-spacing: 2px; animation: pulse 1.6s ease-in-out infinite; }
@@ -129,6 +148,7 @@
   <div id="zone-chip" class="chip">🌺 Resort Grounds</div>
   <div id="sound-chip" class="chip" title="Toggle sound (M)">🔊 Sound On</div>
   <div id="help-chip" class="chip" title="Vacation checklist (Tab)">📋 Checklist</div>
+  <div id="map-chip" class="chip" title="Resort map (V)">🗺️ Resort Map</div>
 
   <div id="needs">
     <div class="need" id="nb-hunger"><span class="ic">🍲</span><div class="bar"><div class="fill" style="width:80%"></div></div></div>
@@ -143,6 +163,11 @@
   <div id="list">
     <h3>🏝️ TO DO IN PARADISE</h3>
     <div class="items"></div>
+  </div>
+
+  <div id="resort-map">
+    <div class="map-head"><h3>Hilton Hawaiian Village-style resort map</h3><span class="hint">Press V or click map chip to close</span></div>
+    <canvas id="resort-map-canvas" width="1720" height="1000"></canvas>
   </div>
   <div id="banner">🏆 LIVING THE DREAM<br><span style="font-size:.5em;font-weight:600">yokozuna vacation complete</span></div>
 
@@ -160,7 +185,7 @@
     <div class="controls">
       <b>W A S D</b> walk &nbsp; <b>SHIFT</b> run &nbsp; <b>SPACE</b> shiko stomp &nbsp; <b>F</b> shout ALOHA<br>
       <b>E</b> interact / eat / relax &nbsp; <b>T</b> talk &nbsp; <b>U</b> ukulele &nbsp; <b>G</b> hula dance<br>
-      <b>TAB</b> vacation checklist &nbsp; <b>drag</b> look &nbsp; <b>scroll</b> zoom &nbsp; <b>M</b> mute<br>
+      <b>TAB</b> vacation checklist &nbsp; <b>V</b> resort map &nbsp; <b>drag</b> look &nbsp; <b>scroll</b> zoom &nbsp; <b>M</b> mute<br>
       <span style="opacity:.8">Swim by walking into deep water. The makuuchi are practicing on the beach dohyō — go say hello.</span>
     </div>
     <div class="go">▶ &nbsp;CLICK OR PRESS ANY KEY TO BEGIN&nbsp; ◀</div>
