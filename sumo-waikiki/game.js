@@ -66,6 +66,17 @@
     return;
   }
   var VISUAL = {
+    exposure: 1.02,
+    fogColor: 0xd5edf6,
+    fogNear: 430,
+    fogFar: 2300,
+    sunColor: 0xfff0b6,
+    sunIntensity: 1.82,
+    hemiSky: 0x8ed8ff,
+    hemiGround: 0xffcf68,
+    hemiIntensity: 0.76,
+    ambientColor: 0x2a4968,
+    ambientIntensity: 0.46
     exposure: 0.88,
     fogColor: 0xe6d8bf,
     fogNear: 340,
@@ -2671,6 +2682,7 @@
     keys[e.code] = true;
     if (e.code === "Space") { e.preventDefault(); triggerStomp(); }
     if (e.code === "Tab") { e.preventDefault(); if (started) toggleChecklist(); }
+    if (e.code === "KeyV") { e.preventDefault(); if (started) toggleResortMap(); }
     if (started) {
       if (e.code === "KeyM") audio.toggle();
       if (e.code === "KeyF") doAloha();
@@ -2997,6 +3009,106 @@
   function toggleChecklist() {
     listEl.style.display = listEl.style.display === "block" ? "none" : "block";
   }
+
+  var resortMapEl = document.getElementById("resort-map");
+  var resortMapCanvas = document.getElementById("resort-map-canvas");
+  var resortMapDrawn = false;
+  function drawResortMap() {
+    if (!resortMapCanvas || resortMapDrawn) return;
+    resortMapDrawn = true;
+    var ctx = resortMapCanvas.getContext("2d"), w = resortMapCanvas.width, h = resortMapCanvas.height;
+    ctx.clearRect(0, 0, w, h);
+    var ocean = ctx.createLinearGradient(0, h * 0.55, 0, h);
+    ocean.addColorStop(0, "#6ed8ed"); ocean.addColorStop(0.55, "#1598c6"); ocean.addColorStop(1, "#046797");
+    ctx.fillStyle = ocean; ctx.fillRect(0, h * 0.55, w, h * 0.45);
+    var sand = ctx.createLinearGradient(0, h * 0.47, 0, h * 0.68);
+    sand.addColorStop(0, "#fff0c4"); sand.addColorStop(1, "#d9b56f");
+    ctx.fillStyle = sand;
+    ctx.beginPath(); ctx.moveTo(0, h * 0.58);
+    ctx.bezierCurveTo(w * 0.26, h * 0.49, w * 0.55, h * 0.57, w, h * 0.47);
+    ctx.lineTo(w, h * 0.74); ctx.bezierCurveTo(w * 0.56, h * 0.8, w * 0.24, h * 0.7, 0, h * 0.77); ctx.closePath(); ctx.fill();
+    var lawn = ctx.createLinearGradient(0, 0, 0, h * 0.56);
+    lawn.addColorStop(0, "#4e7f41"); lawn.addColorStop(1, "#75a858");
+    ctx.fillStyle = lawn; ctx.fillRect(0, 0, w, h * 0.58);
+    speckle(ctx, w, h * 0.58, 9500, ["rgba(32,88,43,.22)", "rgba(255,239,176,.16)", "rgba(15,64,38,.18)"], 0.6, 2.4);
+    function path(points, color, width) {
+      ctx.strokeStyle = color; ctx.lineWidth = width; ctx.lineCap = "round"; ctx.lineJoin = "round";
+      ctx.beginPath(); ctx.moveTo(points[0][0], points[0][1]);
+      for (var i = 1; i < points.length; i++) ctx.lineTo(points[i][0], points[i][1]);
+      ctx.stroke();
+    }
+    path([[80,200],[360,250],[620,290],[950,270],[1260,240],[1640,220]], "rgba(232,212,169,.92)", 26);
+    path([[230,110],[410,330],[520,520],[650,640]], "rgba(232,212,169,.92)", 22);
+    path([[1180,120],[1120,300],[970,480],[860,630]], "rgba(232,212,169,.92)", 22);
+    function lagoon(cx, cy, rx, ry, label) {
+      var g = ctx.createRadialGradient(cx - rx * .3, cy - ry * .35, 4, cx, cy, rx);
+      g.addColorStop(0, "#b7fbff"); g.addColorStop(.35, "#39c8dc"); g.addColorStop(1, "#0784ad");
+      ctx.fillStyle = "rgba(245,222,158,.9)"; ctx.beginPath(); ctx.ellipse(cx, cy, rx + 28, ry + 22, -0.1, 0, 6.283); ctx.fill();
+      ctx.fillStyle = g; ctx.beginPath(); ctx.ellipse(cx, cy, rx, ry, -0.1, 0, 6.283); ctx.fill();
+      labelAt(label, cx, cy + ry + 38, "#075f7f", 22, "800");
+    }
+    function tower(x, y, ww, hh, rot, label, color, rainbow) {
+      ctx.save(); ctx.translate(x, y); ctx.rotate(rot);
+      ctx.shadowColor = "rgba(24,45,58,.34)"; ctx.shadowBlur = 18; ctx.shadowOffsetY = 14;
+      var grad = ctx.createLinearGradient(-ww/2, -hh/2, ww/2, hh/2);
+      grad.addColorStop(0, color); grad.addColorStop(.5, "#f8ead3"); grad.addColorStop(1, "#729cb0");
+      ctx.fillStyle = grad; ctx.fillRect(-ww/2, -hh/2, ww, hh);
+      ctx.shadowColor = "transparent";
+      ctx.strokeStyle = "rgba(30,62,78,.4)"; ctx.lineWidth = 3; ctx.strokeRect(-ww/2, -hh/2, ww, hh);
+      ctx.strokeStyle = "rgba(255,255,255,.72)"; ctx.lineWidth = 2;
+      for (var yy = -hh/2 + 16; yy < hh/2; yy += 17) { ctx.beginPath(); ctx.moveTo(-ww/2, yy); ctx.lineTo(ww/2, yy); ctx.stroke(); }
+      ctx.strokeStyle = "rgba(5,82,116,.34)";
+      for (var xx = -ww/2 + 18; xx < ww/2; xx += 19) { ctx.beginPath(); ctx.moveTo(xx, -hh/2); ctx.lineTo(xx, hh/2); ctx.stroke(); }
+      if (rainbow) {
+        var cols = ["#e83b37", "#f78b28", "#ffd23c", "#36b65d", "#1da4dc", "#5e45bd"];
+        for (var r = 0; r < cols.length; r++) { ctx.strokeStyle = cols[r]; ctx.lineWidth = 7; ctx.beginPath(); ctx.arc(0, hh/2 - 8, 86 - r * 9, Math.PI * 1.06, Math.PI * 1.94); ctx.stroke(); }
+      }
+      ctx.restore();
+      labelAt(label, x, y + hh * .55 + 24, "#173145", 23, "900");
+    }
+    function smallFeature(x, y, ww, hh, label, color) {
+      ctx.save(); ctx.shadowColor = "rgba(24,45,58,.22)"; ctx.shadowBlur = 12; ctx.shadowOffsetY = 8;
+      ctx.fillStyle = color; ctx.strokeStyle = "rgba(30,62,78,.25)"; ctx.lineWidth = 2;
+      roundRect(x - ww/2, y - hh/2, ww, hh, 14); ctx.fill(); ctx.stroke(); ctx.restore();
+      labelAt(label, x, y + hh/2 + 24, "#173145", 20, "800");
+    }
+    function labelAt(text, x, y, color, size, weight) {
+      ctx.save(); ctx.font = (weight || "800") + " " + (size || 20) + "px Avenir Next, Segoe UI, sans-serif";
+      ctx.textAlign = "center"; ctx.lineWidth = 5; ctx.strokeStyle = "rgba(255,255,245,.85)"; ctx.fillStyle = color || "#173145";
+      ctx.strokeText(text, x, y); ctx.fillText(text, x, y); ctx.restore();
+    }
+    function roundRect(x, y, ww, hh, r) {
+      ctx.beginPath(); ctx.moveTo(x + r, y); ctx.lineTo(x + ww - r, y); ctx.quadraticCurveTo(x + ww, y, x + ww, y + r);
+      ctx.lineTo(x + ww, y + hh - r); ctx.quadraticCurveTo(x + ww, y + hh, x + ww - r, y + hh);
+      ctx.lineTo(x + r, y + hh); ctx.quadraticCurveTo(x, y + hh, x, y + hh - r); ctx.lineTo(x, y + r); ctx.quadraticCurveTo(x, y, x + r, y); ctx.closePath();
+    }
+    lagoon(440, 600, 205, 92, "DUKE KAHANAMOKU LAGOON");
+    tower(705, 430, 150, 360, -0.06, "RAINBOW TOWER", "#f1d2ae", true);
+    tower(520, 315, 135, 250, 0.12, "ALIʻI TOWER", "#ead6ba", false);
+    tower(960, 300, 190, 330, -0.08, "TAPA TOWER", "#f1dec2", false);
+    tower(1160, 445, 130, 255, 0.06, "LAGOON TOWER", "#e7d3ba", false);
+    tower(1325, 300, 130, 275, -0.05, "KALIA / GRAND WAIKIKIAN", "#eadcc8", false);
+    tower(1350, 565, 120, 230, 0.04, "DIAMOND HEAD TOWER", "#e6d0b6", false);
+    smallFeature(860, 580, 220, 92, "SUPER POOL", "#38cce6");
+    smallFeature(1010, 500, 230, 110, "RAINBOW BAZAAR", "#ffdf92");
+    smallFeature(740, 250, 180, 76, "MAIN LOBBY", "#fff1ca");
+    smallFeature(1200, 170, 260, 72, "TAPA POOL / CONCOURSE", "#60d4df");
+    labelAt("GREAT LAWN", 610, 740, "#2d6d35", 26, "900");
+    labelAt("VILLAGE GREEN", 1020, 710, "#2d6d35", 25, "900");
+    labelAt("PACIFIC OCEAN", 1290, 880, "#f5fdff", 42, "900");
+    labelAt("ALA MOANA BLVD", 430, 100, "#223b4b", 26, "900");
+    labelAt("RAINBOW DRIVE", 1400, 205, "#223b4b", 22, "900");
+    labelAt("LAGOON DRIVE", 250, 365, "#223b4b", 22, "900");
+    labelAt("PORT HILTON", 168, 688, "#075f7f", 22, "900");
+    ctx.strokeStyle = "rgba(255,255,255,.42)"; ctx.lineWidth = 3;
+    for (var wave = 0; wave < 7; wave++) path([[40 + wave * 220, 845 + Math.sin(wave) * 12], [150 + wave * 220, 820], [260 + wave * 220, 845]], "rgba(255,255,255,.34)", 5);
+  }
+  function toggleResortMap() {
+    drawResortMap();
+    resortMapEl.classList.toggle("show");
+  }
+  document.getElementById("map-chip").addEventListener("click", toggleResortMap);
+  if (resortMapEl) resortMapEl.addEventListener("click", function (e) { if (e.target === resortMapEl) toggleResortMap(); });
 
   var toastEl = document.getElementById("toast");
   var toastTimer = null;

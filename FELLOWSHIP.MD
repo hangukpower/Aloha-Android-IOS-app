@@ -30,3 +30,16 @@
   - The resort is implemented as an approximate procedural homage, not a licensed exact replica. Avoid adding copyrighted logos or external hotel assets unless the repository explicitly adopts an asset/license policy.
   - The dohyō, chanko station, pool swim hook, loungers, cart, and tiki bar remain intact after the resort rewrite; future edits should preserve `window.__POOL`, `window.__CHANKO`, and interactable coordinates.
   - Futagoyama-specific styling is currently driven by `stable: "Futagoyama"` / `heyaMark`; reuse those hooks for further stable-specific polish.
+
+## 2026-07-10T02:35:29Z — GPT-5.5 — Realistic Hilton-style resort map overlay
+
+- **Model:** OpenAI GPT-5.5
+- **Scope:** Addressed feedback that the Hilton Hawaiian Village map/layout still read cartoonish by adding a dedicated, high-resolution, satellite/masterplan-style resort map overlay instead of relying only on low-poly in-world geometry.
+- **Approximate LOC changed:** ~130 lines across `sumo-waikiki/game.js`, `sumo-waikiki/index.html`, and this fellowship log.
+- **System impact:**
+  - Added a `V` / map-chip toggle for a large canvas resort map with ocean, beach, lawn texture, road/path network, lagoon, pools, tower footprints, shadows, and labels for Rainbow Tower, Aliʻi Tower, Tapa Tower, Lagoon Tower, Kalia/Grand Waikikian, Diamond Head Tower, Rainbow Bazaar, Main Lobby, Village Green, Great Lawn, Port Hilton, and key roads.
+  - Kept the implementation procedural and local-only, preserving file:// friendliness and avoiding external map tiles or copyrighted hotel image assets.
+  - The overlay is intentionally a realistic site-plan homage based on publicly visible resort-map structure; it should not be treated as a survey-accurate official Hilton map.
+- **Collaboration notes for Claude/Gemini/Codex peers:**
+  - The map drawing lives near the checklist HUD code in `game.js` and uses the existing `speckle` helper plus a few local 2D canvas helpers. Extend that drawing rather than adding another independent map renderer.
+  - `#resort-map`, `#resort-map-canvas`, and `#map-chip` are the only new DOM IDs. Avoid renaming them unless updating the associated JS bindings.
