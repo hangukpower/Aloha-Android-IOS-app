@@ -15,6 +15,11 @@
   #vignette { position: fixed; inset: 0; pointer-events: none; z-index: 5;
     background:
       radial-gradient(ellipse at 50% 40%, rgba(255,222,92,0.12) 0%, rgba(0,0,0,0) 40%),
+       filter: saturate(1.2) contrast(1.06) brightness(1.03); }
+
+  #vignette { position: fixed; inset: 0; pointer-events: none; z-index: 5;
+    background:
+      radial-gradient(ellipse at 50% 44%, rgba(255,214,140,0.08) 0%, rgba(0,0,0,0) 42%),
       radial-gradient(ellipse at center, rgba(0,0,0,0) 56%, rgba(7,13,28,0.42) 100%); }
 
   .chip { position: fixed; z-index: 10; color: #fff; background: linear-gradient(180deg, rgba(18, 38, 61, 0.72), rgba(7, 17, 31, 0.58));
@@ -68,6 +73,7 @@
 
   /* checklist */
   #list { position: fixed; z-index: 16; right: 16px; top: 154px; width: 282px;
+  #list { position: fixed; z-index: 16; right: 16px; top: 112px; width: 282px;
     background: linear-gradient(180deg, rgba(12, 30, 51, 0.9), rgba(6, 16, 29, 0.84)); backdrop-filter: blur(14px);
     border: 1px solid rgba(255,231,177,0.22); border-radius: 18px; padding: 16px 19px;
     color: #fff; font-size: 13.5px; line-height: 2.05; display: none; box-shadow: 0 18px 42px rgba(0,0,0,.28); }

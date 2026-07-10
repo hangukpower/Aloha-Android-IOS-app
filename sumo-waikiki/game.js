@@ -77,6 +77,17 @@
     hemiIntensity: 0.76,
     ambientColor: 0x2a4968,
     ambientIntensity: 0.46
+    exposure: 0.88,
+    fogColor: 0xe6d8bf,
+    fogNear: 340,
+    fogFar: 1850,
+    sunColor: 0xffd49a,
+    sunIntensity: 1.55,
+    hemiSky: 0xc9e6ff,
+    hemiGround: 0x9b7644,
+    hemiIntensity: 0.62,
+    ambientColor: 0x253653,
+    ambientIntensity: 0.54
   };
 
   renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 1.5));
