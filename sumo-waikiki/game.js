@@ -65,18 +65,32 @@
     document.getElementById("err").style.display = "flex";
     return;
   }
+  var VISUAL = {
+    exposure: 0.88,
+    fogColor: 0xe6d8bf,
+    fogNear: 340,
+    fogFar: 1850,
+    sunColor: 0xffd49a,
+    sunIntensity: 1.55,
+    hemiSky: 0xc9e6ff,
+    hemiGround: 0x9b7644,
+    hemiIntensity: 0.62,
+    ambientColor: 0x253653,
+    ambientIntensity: 0.54
+  };
+
   renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 1.5));
   renderer.setSize(window.innerWidth, window.innerHeight);
   renderer.outputEncoding = THREE.sRGBEncoding;
   renderer.toneMapping = THREE.ACESFilmicToneMapping;
-  renderer.toneMappingExposure = 0.75;
+  renderer.toneMappingExposure = VISUAL.exposure;
   renderer.shadowMap.enabled = true;
   renderer.shadowMap.type = THREE.PCFShadowMap;
 
   var scene = new THREE.Scene();
-  scene.fog = new THREE.Fog(0xcfdfe8, 280, 1700);
+  scene.fog = new THREE.Fog(VISUAL.fogColor, VISUAL.fogNear, VISUAL.fogFar);
 
-  var camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.3, 14000);
+  var camera = new THREE.PerspectiveCamera(57, window.innerWidth / window.innerHeight, 0.3, 14000);
 
   window.addEventListener("resize", function () {
     camera.aspect = window.innerWidth / window.innerHeight;
@@ -127,6 +141,45 @@
     var t = new THREE.CanvasTexture(cv);
     if (srgb !== false) t.encoding = THREE.sRGBEncoding;
     t.anisotropy = renderer.capabilities.getMaxAnisotropy();
+    return t;
+  }
+  function tintColor(hex, amt) {
+    var c = new THREE.Color(hex);
+    c.offsetHSL(0, 0, amt);
+    return "#" + c.getHexString();
+  }
+  function detailTexture(base, specks, scale) {
+    var t = canvasTexture(makeCanvas(128, 128, function (ctx, w, h) {
+      ctx.fillStyle = tintColor(base, 0);
+      ctx.fillRect(0, 0, w, h);
+      speckle(ctx, w, h, specks || 900, [tintColor(base, -0.09), tintColor(base, 0.07), "rgba(255,255,255,0.08)", "rgba(0,0,0,0.08)"], 0.45, 1.8);
+    }));
+    t.wrapS = t.wrapT = THREE.RepeatWrapping;
+    t.repeat.set(scale || 2, scale || 2);
+    return t;
+  }
+  function texturedStandard(base, roughness, repeat, metalness) {
+    return new THREE.MeshStandardMaterial({
+      color: base, map: detailTexture(base, 700, repeat || 2),
+      roughness: roughness, metalness: metalness || 0
+    });
+  }
+  function grainNormalTexture(repeatX, repeatY, strength) {
+    var N = 96, cv = document.createElement("canvas"), ctx, img, x, y;
+    cv.width = N; cv.height = N; ctx = cv.getContext("2d");
+    img = ctx.createImageData(N, N);
+    for (y = 0; y < N; y++) for (x = 0; x < N; x++) {
+      var n = Math.sin(x * 0.7) * 0.4 + Math.sin(y * 0.53) * 0.35 + (Math.random() - 0.5) * strength;
+      var i = (y * N + x) * 4;
+      img.data[i] = 128 + n * 18;
+      img.data[i + 1] = 128 + n * 14;
+      img.data[i + 2] = 238;
+      img.data[i + 3] = 255;
+    }
+    ctx.putImageData(img, 0, 0);
+    var t = new THREE.CanvasTexture(cv);
+    t.wrapS = t.wrapT = THREE.RepeatWrapping;
+    t.repeat.set(repeatX, repeatY);
     return t;
   }
   function speckle(ctx, w, h, n, colors, rMin, rMax) {
@@ -201,7 +254,7 @@
   var sunDir = new THREE.Vector3(-0.62, 0.5, 0.72).normalize();
   skyU.sunPosition.value.copy(sunDir);
 
-  var sun = new THREE.DirectionalLight(0xffe2b8, 1.35);
+  var sun = new THREE.DirectionalLight(VISUAL.sunColor, VISUAL.sunIntensity);
   sun.castShadow = true;
   sun.shadow.mapSize.set(1536, 1536);
   sun.shadow.camera.near = 10;
@@ -212,9 +265,9 @@
   scene.add(sun);
   scene.add(sun.target);
 
-  var hemi = new THREE.HemisphereLight(0xbfd8f2, 0x8f7a55, 0.55);
+  var hemi = new THREE.HemisphereLight(VISUAL.hemiSky, VISUAL.hemiGround, VISUAL.hemiIntensity);
   scene.add(hemi);
-  var fill = new THREE.AmbientLight(0x223349, 0.7);
+  var fill = new THREE.AmbientLight(VISUAL.ambientColor, VISUAL.ambientIntensity);
   scene.add(fill);
 
   // soft lens glare that rides the sun direction
@@ -449,7 +502,10 @@
     speckle(ctx, 2048, 1024, 9000, ["#00000022", "#ffffff14"], 0.6, 1.8);
 
     var geo = worldPlane(-130, -80, 130, SHORE_Z + 0.5, 64, 32, function () { return 0; });
-    var mesh = new THREE.Mesh(geo, new THREE.MeshStandardMaterial({ map: W.texture(), roughness: 0.96 }));
+    var mesh = new THREE.Mesh(geo, new THREE.MeshStandardMaterial({
+      map: W.texture(), roughness: 0.92,
+      normalMap: grainNormalTexture(48, 22, 1.4), normalScale: new THREE.Vector2(0.09, 0.09)
+    }));
     mesh.position.y = 0.02;
     mesh.receiveShadow = true;
     scene.add(mesh);
@@ -1336,12 +1392,12 @@
     var scale = opts.scale || 1;
     var slim = !!opts.slim;
     var bellyF = opts.belly || 1, chestF = opts.chest || 1;
-    var skin = new THREE.MeshStandardMaterial({ color: opts.skin || 0xc57f45, roughness: 0.55 });
-    var skinD = new THREE.MeshStandardMaterial({ color: 0x9c6234, roughness: 0.6 });
-    var hairMat = new THREE.MeshStandardMaterial({ color: opts.hairColor || 0x14100e, roughness: 0.35 });
-    var fabric = new THREE.MeshStandardMaterial({ color: opts.shirt || 0xff8f4a, roughness: 0.8 });
-    var shorts = new THREE.MeshStandardMaterial({ color: opts.shorts || 0x3a6ea5, roughness: 0.8 });
-    var mawashiMat = new THREE.MeshStandardMaterial({ color: opts.mawashi || 0xf0ead8, roughness: 0.75 });
+    var skin = texturedStandard(opts.skin || 0xc57f45, 0.58, 1.7);
+    var skinD = texturedStandard(0x9c6234, 0.62, 1.6);
+    var hairMat = texturedStandard(opts.hairColor || 0x14100e, 0.42, 1.2);
+    var fabric = texturedStandard(opts.shirt || 0xff8f4a, 0.84, 2.8);
+    var shorts = texturedStandard(opts.shorts || 0x3a6ea5, 0.82, 2.5);
+    var mawashiMat = texturedStandard(opts.mawashi || 0xf0ead8, 0.78, 2.2);
     var isRikishi = opts.outfit === "rikishi";
     var isDress = opts.outfit === "dress";
     var isKimono = opts.outfit === "kimono";
@@ -1407,7 +1463,7 @@
       torso.add(knot);
       if (opts.tsuna) {
         // the yokozuna's white rope, tied at the back, shide strips at the front
-        var tsunaMat = new THREE.MeshStandardMaterial({ color: 0xfaf6ea, roughness: 0.85 });
+        var tsunaMat = texturedStandard(0xfaf6ea, 0.86, 2.4);
         var rope = new THREE.Mesh(new THREE.TorusGeometry(0.86, 0.115, 10, 30), tsunaMat);
         rope.scale.set(1.08 * bellyF, 1, 1.0 * bellyF);
         rope.rotation.x = Math.PI / 2;
@@ -2894,6 +2950,7 @@
     if (kind === "pog") props.cup.visible = true;
     else props.bowl.visible = true;
     audio.munch();
+    toast(kind === "pog" ? "🧃 Fresh POG incoming..." : (kind === "shaveice" ? "🍧 Scooping rainbow shave ice..." : "🍲 Ladling chanko..."));
   }
 
   var interactables = [
@@ -2951,6 +3008,8 @@
       line = a.coachLines[(Math.random() * a.coachLines.length) | 0];
     }
     showBubble(a, line, 4.6);
+    activityT = 0;
+    shake = Math.max(shake, 0.035);
     if (a.kind === "rikishi" || a.kind === "master") checkTask("talkR");
     if (a.kind === "tourist") checkTask("talkG");
     needs.fun = Math.min(100, needs.fun + 6);
@@ -2960,6 +3019,7 @@
     if (stomp.t < 0 && started && !swimming && activity !== "relax") {
       stopActivity();
       stomp.t = 0;
+      toast("🦶 Shiko! The whole beach feels it.");
     }
   }
   function doAloha() {
@@ -3045,6 +3105,7 @@
   // ------------------------------------------------------------------- loop
   var clock = new THREE.Clock();
   var camPos = new THREE.Vector3(0, 4, 26);
+  var camLook = new THREE.Vector3(0, 2.6, 0);
   var camSnap = false;
   var stompImpactDone = false;
   var hudAcc = 0;
@@ -3133,8 +3194,9 @@
       window.__applyPlayerPose();
       if (s > 0.56 && !stompImpactDone) {
         stompImpactDone = true;
-        shake = 0.55;
+        shake = 0.75;
         audio.thump();
+        setTimeout(function () { audio.thump(); }, 95);
         needs.energy = Math.max(0, needs.energy - 2);
         needs.fun = Math.min(100, needs.fun + 3);
         if (inWater) {
@@ -3142,7 +3204,8 @@
           spawnRipple(sumo.position.x + 0.8, sumo.position.z + 0.4);
           audio.splash();
         } else {
-          burstDust(sumo.position.x + Math.sin(facing + 0.4), gy, sumo.position.z + Math.cos(facing + 0.4), 9, 2.6);
+          burstDust(sumo.position.x + Math.sin(facing + 0.4), gy, sumo.position.z + Math.cos(facing + 0.4), 16, 3.4);
+          stampFootprint(sumo.position.x + Math.sin(facing + 0.45), sumo.position.z + Math.cos(facing + 0.45), facing);
           if (sumo.position.z > SHORE_Z) checkTask("stomp");
         }
       }
@@ -3273,17 +3336,25 @@
     }
 
     // ---- camera
-    var targetY = sumo.position.y + (swimming ? 1.6 : 2.6);
-    var cx = sumo.position.x + Math.sin(camYaw) * Math.cos(camPitch) * camDist;
-    var cz = sumo.position.z + Math.cos(camYaw) * Math.cos(camPitch) * camDist;
+    var activityLow = activity === "relax" || swimming;
+    var targetY = sumo.position.y + (activityLow ? 1.65 : 2.55);
+    var lookAhead = moving ? Math.min(3.2, speedNow * 0.32) : 0.7;
+    var shoulder = swimming ? 0.25 : (moving ? 0.85 : 0.45);
+    var lookX = sumo.position.x + Math.sin(facing) * lookAhead + Math.sin(camYaw + Math.PI / 2) * shoulder;
+    var lookZ = sumo.position.z + Math.cos(facing) * lookAhead + Math.cos(camYaw + Math.PI / 2) * shoulder;
+    var cx = sumo.position.x + Math.sin(camYaw) * Math.cos(camPitch) * camDist + Math.sin(camYaw + Math.PI / 2) * shoulder;
+    var cz = sumo.position.z + Math.cos(camYaw) * Math.cos(camPitch) * camDist + Math.cos(camYaw + Math.PI / 2) * shoulder;
     var cy = targetY + Math.sin(camPitch) * camDist;
     var minY = groundY(cx, cz) + 0.6;
     if (cy < minY) cy = minY;
     if (cy < SEA_LEVEL + 0.5) cy = SEA_LEVEL + 0.5;
-    if (camSnap) { camPos.set(cx, cy, cz); camSnap = false; }
+    if (camSnap) { camPos.set(cx, cy, cz); camLook.set(lookX, targetY, lookZ); camSnap = false; }
     camPos.x += (cx - camPos.x) * Math.min(1, dt * 7);
     camPos.y += (cy - camPos.y) * Math.min(1, dt * 7);
     camPos.z += (cz - camPos.z) * Math.min(1, dt * 7);
+    camLook.x += (lookX - camLook.x) * Math.min(1, dt * 8);
+    camLook.y += (targetY - camLook.y) * Math.min(1, dt * 8);
+    camLook.z += (lookZ - camLook.z) * Math.min(1, dt * 8);
     camera.position.copy(camPos);
     if (shake > 0.005) {
       camera.position.x += (Math.random() - 0.5) * shake;
@@ -3291,7 +3362,7 @@
       camera.position.z += (Math.random() - 0.5) * shake;
       shake *= Math.pow(0.0018, dt);
     }
-    camera.lookAt(sumo.position.x, targetY, sumo.position.z);
+    camera.lookAt(camLook);
 
     sun.position.copy(sumo.position).addScaledVector(sunDir, 260);
     sun.target.position.copy(sumo.position);
