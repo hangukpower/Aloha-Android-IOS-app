@@ -14,11 +14,11 @@
     master: { name: "Futagoyama Oyakata", rank: "ex-Ōzeki Miyabiyama" },
     // Futagoyama-beya — edit/extend to match the current heya roster:
     futagoyama: [
-      { name: "Yoshii", rank: "Maegashira", skin: 0xc98a52, scale: 0.96, belly: 0.95,
+      { name: "Yoshii", rank: "Maegashira", stable: "Futagoyama", skin: 0xc98a52, scale: 0.96, belly: 0.95,
         line: "Oyakata brought the whole heya to Hawaiʻi — but keiko comes first, beach or no beach!" },
-      { name: "Futagoyama deshi", rank: "Tsukebito", skin: 0xba7a45, scale: 0.9, belly: 0.9, deshi: true,
+      { name: "Futagoyama deshi", rank: "Tsukebito", stable: "Futagoyama", skin: 0xba7a45, scale: 0.9, belly: 0.9, deshi: true,
         line: "I carry the water, I rake the dohyō... one day I'll be the one they cheer for." },
-      { name: "Futagoyama deshi", rank: "Tsukebito", skin: 0xd09a62, scale: 0.88, belly: 0.85, deshi: true,
+      { name: "Futagoyama deshi", rank: "Tsukebito", stable: "Futagoyama", skin: 0xd09a62, scale: 0.88, belly: 0.85, deshi: true,
         line: "The oyakata's chanko recipe? Secret. But today it has pineapple in it. Aloha style!" }
     ],
     // visiting makuuchi for the inter-stable beach practice (degeiko):
@@ -245,13 +245,13 @@
   sky.scale.setScalar(7500);
   scene.add(sky);
   var skyU = sky.material.uniforms;
-  skyU.turbidity.value = 3;
-  skyU.rayleigh.value = 2.0;
-  skyU.mieCoefficient.value = 0.004;
-  skyU.mieDirectionalG.value = 0.97;
+  skyU.turbidity.value = 1.6;
+  skyU.rayleigh.value = 3.25;
+  skyU.mieCoefficient.value = 0.0024;
+  skyU.mieDirectionalG.value = 0.91;
 
-  // afternoon sun hanging to the southwest, out over the water
-  var sunDir = new THREE.Vector3(-0.62, 0.5, 0.72).normalize();
+  // crisp tropical sun hanging over the water: bluer sky, cleaner yellow light
+  var sunDir = new THREE.Vector3(-0.45, 0.62, 0.64).normalize();
   skyU.sunPosition.value.copy(sunDir);
 
   var sun = new THREE.DirectionalLight(VISUAL.sunColor, VISUAL.sunIntensity);
@@ -270,7 +270,28 @@
   var fill = new THREE.AmbientLight(VISUAL.ambientColor, VISUAL.ambientIntensity);
   scene.add(fill);
 
-  // soft lens glare that rides the sun direction
+  // sun disc + soft lens glare that ride the sun direction
+  var sunDisc = (function () {
+    var tex = canvasTexture(makeCanvas(128, 128, function (ctx, w, h) {
+      var g = ctx.createRadialGradient(w / 2, h / 2, 1, w / 2, h / 2, w / 2);
+      g.addColorStop(0, "rgba(255,252,214,1)");
+      g.addColorStop(0.22, "rgba(255,237,128,0.92)");
+      g.addColorStop(0.42, "rgba(255,198,70,0.35)");
+      g.addColorStop(1, "rgba(255,198,70,0)");
+      ctx.fillStyle = g;
+      ctx.fillRect(0, 0, w, h);
+    }));
+    var sp = new THREE.Sprite(new THREE.SpriteMaterial({
+      map: tex, transparent: true, opacity: 0.82, depthWrite: false, depthTest: false,
+      blending: THREE.AdditiveBlending, fog: false
+    }));
+    sp.material.toneMapped = false;
+    sp.scale.set(130, 130, 1);
+    sp.renderOrder = 51;
+    scene.add(sp);
+    return sp;
+  })();
+
   var glare = (function () {
     var tex = canvasTexture(makeCanvas(128, 128, function (ctx, w, h) {
       var g = ctx.createRadialGradient(w / 2, h / 2, 2, w / 2, h / 2, w / 2);
@@ -900,46 +921,111 @@
   var loungers = [];   // player/NPC-usable: {x, z, ry, taken}
 
   (function () {
-    function facadeTexture(floors, cols, tint) {
+    function facadeTexture(floors, cols, tint, balcony) {
       return canvasTexture(makeCanvas(512, 1024, function (ctx, w, h) {
-        ctx.fillStyle = tint;
+        var sky = ctx.createLinearGradient(0, 0, 0, h);
+        sky.addColorStop(0, tint);
+        sky.addColorStop(1, "#fff3da");
+        ctx.fillStyle = sky;
         ctx.fillRect(0, 0, w, h);
         var fh = h / floors, cw = w / cols;
         for (var f = 0; f < floors; f++) {
-          ctx.fillStyle = "rgba(255,255,255,0.55)";
-          ctx.fillRect(0, f * fh + fh * 0.82, w, fh * 0.10);
+          if (balcony) {
+            ctx.fillStyle = "rgba(255,255,255,0.72)";
+            ctx.fillRect(0, f * fh + fh * 0.78, w, fh * 0.13);
+            ctx.fillStyle = "rgba(50,80,95,0.2)";
+            ctx.fillRect(0, f * fh + fh * 0.91, w, 1.5);
+          }
           for (var c = 0; c < cols; c++) {
             var lit = Math.random();
-            var glass = lit > 0.93 ? "#ffd98a" : (lit > 0.5 ? "#9fc4d8" : "#7ba9c2");
-            ctx.fillStyle = glass;
-            ctx.fillRect(c * cw + cw * 0.14, f * fh + fh * 0.16, cw * 0.72, fh * 0.6);
-            ctx.fillStyle = "rgba(255,255,255,0.25)";
-            ctx.fillRect(c * cw + cw * 0.14, f * fh + fh * 0.16, cw * 0.72, fh * 0.16);
-            ctx.strokeStyle = "rgba(60,60,70,0.5)";
-            ctx.strokeRect(c * cw + cw * 0.14, f * fh + fh * 0.16, cw * 0.72, fh * 0.6);
+            var g = ctx.createLinearGradient(c * cw, f * fh, c * cw + cw, f * fh + fh);
+            g.addColorStop(0, lit > 0.86 ? "#ffe59f" : "#48b6db");
+            g.addColorStop(0.55, lit > 0.86 ? "#ffd06f" : "#147ca8");
+            g.addColorStop(1, "#07587e");
+            ctx.fillStyle = g;
+            ctx.fillRect(c * cw + cw * 0.16, f * fh + fh * 0.15, cw * 0.68, fh * 0.52);
+            ctx.fillStyle = "rgba(255,255,255,0.42)";
+            ctx.fillRect(c * cw + cw * 0.2, f * fh + fh * 0.17, cw * 0.18, fh * 0.46);
           }
         }
       }));
     }
-    function tower(x, z, w, d, h, tint) {
-      var faceW = facadeTexture(Math.round(h / 3.4), Math.round(w / 2.6), tint);
-      var faceD = facadeTexture(Math.round(h / 3.4), Math.round(d / 2.6), tint);
-      var roof = new THREE.MeshStandardMaterial({ color: 0x8e8478, roughness: 0.9 });
-      var mw = new THREE.MeshStandardMaterial({ map: faceW, roughness: 0.55 });
-      var md = new THREE.MeshStandardMaterial({ map: faceD, roughness: 0.55 });
+    function rainbowMuralTexture() {
+      return canvasTexture(makeCanvas(256, 1024, function (ctx, w, h) {
+        ctx.fillStyle = "#f7e8cf";
+        ctx.fillRect(0, 0, w, h);
+        var cols = ["#f34235", "#ff8b24", "#ffd139", "#39b95d", "#1aa7df", "#2d57c8", "#8a4ecf"];
+        for (var i = 0; i < cols.length; i++) {
+          ctx.strokeStyle = cols[i];
+          ctx.lineWidth = 18;
+          ctx.beginPath();
+          ctx.arc(w * 0.5, h * 0.95, h * (0.78 - i * 0.035), Math.PI * 1.05, Math.PI * 1.95);
+          ctx.stroke();
+        }
+        ctx.fillStyle = "rgba(255,255,255,0.48)";
+        for (var y = 18; y < h; y += 34) ctx.fillRect(0, y, w, 2);
+        ctx.strokeStyle = "rgba(80,80,70,0.25)";
+        ctx.strokeRect(8, 8, w - 16, h - 16);
+      }));
+    }
+    function tower(x, z, w, d, h, tint, name) {
+      var faceW = facadeTexture(Math.round(h / 3.2), Math.round(w / 2.4), tint, true);
+      var faceD = facadeTexture(Math.round(h / 3.2), Math.round(d / 2.4), tint, true);
+      var roof = new THREE.MeshStandardMaterial({ color: 0x786e62, roughness: 0.78 });
+      var mw = new THREE.MeshStandardMaterial({ map: faceW, roughness: 0.42, metalness: 0.02 });
+      var md = new THREE.MeshStandardMaterial({ map: faceD, roughness: 0.42, metalness: 0.02 });
       var mesh = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), [md, md, roof, roof, mw, mw]);
       mesh.position.set(x, h / 2, z);
       mesh.castShadow = true;
       scene.add(mesh);
-      var cap = new THREE.Mesh(new THREE.BoxGeometry(w * 0.5, 3, d * 0.6),
-        new THREE.MeshStandardMaterial({ color: 0x6e6459, roughness: 0.9 }));
+      var cap = new THREE.Mesh(new THREE.BoxGeometry(w * 0.54, 3, d * 0.66), roof);
       cap.position.set(x, h + 1.5, z);
+      cap.castShadow = true;
       scene.add(cap);
       addCollider(x, z, w / 2 + 1, d / 2 + 1);
+      return mesh;
     }
-    tower(-46, -54, 24, 16, 74, "#e8ddcb");
-    tower(2, -60, 30, 17, 92, "#efe6d6");
-    tower(50, -52, 22, 15, 64, "#e2d5c0");
+    function rainbowTower(x, z) {
+      var h = 112, w = 26, d = 16;
+      var glass = facadeTexture(31, 10, "#f3e1c7", true);
+      var mural = rainbowMuralTexture();
+      var roof = new THREE.MeshStandardMaterial({ color: 0x6f655d, roughness: 0.72 });
+      var mg = new THREE.MeshStandardMaterial({ map: glass, roughness: 0.35, metalness: 0.04 });
+      var mm = new THREE.MeshStandardMaterial({ map: mural, roughness: 0.5 });
+      var mesh = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), [mm, mm, roof, roof, mg, mg]);
+      mesh.position.set(x, h / 2, z);
+      mesh.castShadow = true;
+      scene.add(mesh);
+      var crown = new THREE.Mesh(new THREE.BoxGeometry(w * 0.66, 4, d * 0.76), roof);
+      crown.position.set(x, h + 2, z);
+      crown.castShadow = true;
+      scene.add(crown);
+      addCollider(x, z, w / 2 + 1, d / 2 + 1);
+    }
+
+    // Hilton Hawaiian Village-inspired layout: Rainbow Tower by the lagoon,
+    // plus Tapa/Aliʻi/Lagoon/Diamond Head-style towers stepping inland.
+    rainbowTower(-6, -57);
+    tower(-48, -58, 24, 17, 82, "#ead7bd", "Alii");
+    tower(34, -63, 31, 18, 96, "#f0dfc5", "Tapa");
+    tower(67, -47, 22, 16, 70, "#e7d5bd", "Diamond Head");
+
+    // Duke Kahanamoku-style saltwater lagoon between the village and beach
+    var lagoon = new THREE.Group();
+    var lagoonWater = new THREE.Mesh(new THREE.CircleGeometry(1, 64),
+      new THREE.MeshStandardMaterial({ color: 0x19aeca, roughness: 0.1, metalness: 0.04, transparent: true, opacity: 0.88 }));
+    lagoonWater.scale.set(19, 10, 1);
+    lagoonWater.rotation.x = -Math.PI / 2;
+    lagoonWater.position.y = 0.055;
+    lagoon.add(lagoonWater);
+    var lagoonSand = new THREE.Mesh(new THREE.RingGeometry(1.02, 1.18, 64),
+      new THREE.MeshStandardMaterial({ color: 0xf2dfad, roughness: 0.84 }));
+    lagoonSand.scale.set(19, 10, 1);
+    lagoonSand.rotation.x = -Math.PI / 2;
+    lagoonSand.position.y = 0.05;
+    lagoon.add(lagoonSand);
+    lagoon.position.set(-63, 0, 26);
+    scene.add(lagoon);
 
     // open-air lobby hale
     var lob = new THREE.Group();
@@ -983,14 +1069,14 @@
       ctx.strokeRect(14, 14, w - 28, h - 28);
       ctx.textAlign = "center";
       ctx.fillStyle = "#ffe9b8";
-      ctx.font = "900 92px Georgia, 'Times New Roman', serif";
-      ctx.fillText("WAIKIKI VILLAGE", w / 2, 128);
-      ctx.font = "700 58px Georgia, 'Times New Roman', serif";
+      ctx.font = "900 82px Georgia, 'Times New Roman', serif";
+      ctx.fillText("RAINBOW VILLAGE", w / 2, 126);
+      ctx.font = "700 52px Georgia, 'Times New Roman', serif";
       ctx.fillStyle = "#e8c97a";
-      ctx.fillText("R  E  S  O  R  T", w / 2, 208);
+      ctx.fillText("W A I K I K I", w / 2, 202);
       ctx.font = "italic 34px Georgia, serif";
       ctx.fillStyle = "#ffd9a0";
-      ctx.fillText("e komo mai — welcome", w / 2, 258);
+      ctx.fillText("lagoon • beach • aloha", w / 2, 256);
       drawFlower(ctx, 78, h / 2, 52, "#ff6ea0", "#ffd166");
       drawFlower(ctx, w - 78, h / 2, 52, "#ff6ea0", "#ffd166");
     });
@@ -1018,24 +1104,24 @@
     arch.position.set(0, 0, -12.5);
     scene.add(arch);
 
-    // swimming pool (no collider — you can swim in it)
+    // Super Pool-style bright pool deck (no collider — you can swim in it)
     var pool = new THREE.Group();
-    var pw = 22, pd = 12;
+    var pw = 24, pd = 13;
     var poolTex = canvasTexture(makeCanvas(256, 256, function (ctx, w, h) {
-      ctx.fillStyle = "#37b8d2";
+      ctx.fillStyle = "#18bfe5";
       ctx.fillRect(0, 0, w, h);
-      ctx.strokeStyle = "rgba(255,255,255,0.22)";
+      ctx.strokeStyle = "rgba(255,255,255,0.26)";
       for (var x = 0; x < w; x += 20) { ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, h); ctx.stroke(); }
       for (var y = 0; y < h; y += 20) { ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(w, y); ctx.stroke(); }
-      speckle(ctx, w, h, 300, ["#7fe0ef", "#1d95b0"], 2, 9);
+      speckle(ctx, w, h, 420, ["#a9f7ff", "#068cb9"], 2, 9);
     }));
     var pwater = new THREE.Mesh(new THREE.PlaneGeometry(pw, pd),
-      new THREE.MeshStandardMaterial({ map: poolTex, transparent: true, opacity: 0.92, roughness: 0.12, metalness: 0.05 }));
+      new THREE.MeshStandardMaterial({ map: poolTex, transparent: true, opacity: 0.94, roughness: 0.08, metalness: 0.06 }));
     pwater.rotation.x = -Math.PI / 2;
     pwater.position.y = 0.07;
     pwater.receiveShadow = true;
     pool.add(pwater);
-    var copMat = new THREE.MeshStandardMaterial({ color: 0xe8dfca, roughness: 0.7 });
+    var copMat = new THREE.MeshStandardMaterial({ color: 0xf4e8cf, roughness: 0.65 });
     [[0, pd / 2 + 0.5, pw + 2.4, 1], [0, -pd / 2 - 0.5, pw + 2.4, 1], [pw / 2 + 0.5, 0, 1, pd], [-pw / 2 - 0.5, 0, 1, pd]]
       .forEach(function (s) {
         var m = new THREE.Mesh(new THREE.BoxGeometry(s[2], 0.26, s[3]), copMat);
@@ -1253,41 +1339,43 @@
   // ------------------------------------------------------------- sky extras
   var clouds = [];
   (function () {
-    // trade-wind cumulus: flat bases, puffy tops
-    var tex = canvasTexture(makeCanvas(256, 128, function (ctx, w, h) {
-      ctx.clearRect(0, 0, w, h);
-      var baseY = h * 0.72;
-      for (var i = 0; i < 30; i++) {
-        var x = w * 0.5 + (Math.random() - 0.5) * w * 0.72;
-        var r = 12 + Math.random() * 24;
-        var y = baseY - Math.abs((Math.random() - 0.5)) * h * 0.52 - r * 0.3;
-        if (y > baseY - r * 0.4) y = baseY - r * 0.4;
-        var g = ctx.createRadialGradient(x, y, 1, x, y, r);
-        g.addColorStop(0, "rgba(255,253,248,0.75)");
-        g.addColorStop(0.8, "rgba(252,248,240,0.28)");
-        g.addColorStop(1, "rgba(252,248,240,0)");
-        ctx.fillStyle = g;
-        ctx.fillRect(0, 0, w, h);
-      }
-      // shave the bottom flat
-      ctx.clearRect(0, baseY + 6, w, h - baseY - 6);
-      var fade = ctx.createLinearGradient(0, baseY - 8, 0, baseY + 6);
-      fade.addColorStop(0, "rgba(0,0,0,0)");
-      fade.addColorStop(1, "rgba(0,0,0,1)");
-      ctx.globalCompositeOperation = "destination-out";
-      ctx.fillStyle = fade;
-      ctx.fillRect(0, baseY - 8, w, 14);
-      ctx.globalCompositeOperation = "source-over";
-    }));
-    for (var i = 0; i < 12; i++) {
-      var sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex, transparent: true, depthWrite: false, fog: false }));
+    // layered trade-wind cumulus: small bright puff sprites over a flat blue horizon
+    function cloudTexture(seed) {
+      return canvasTexture(makeCanvas(320, 160, function (ctx, w, h) {
+        ctx.clearRect(0, 0, w, h);
+        var baseY = h * (0.66 + seed * 0.03);
+        for (var i = 0; i < 42; i++) {
+          var x = w * 0.5 + (Math.random() - 0.5) * w * 0.82;
+          var r = 16 + Math.random() * 32;
+          var y = baseY - Math.abs(Math.random() - 0.5) * h * 0.58 - r * 0.25;
+          var g = ctx.createRadialGradient(x, y, 1, x, y, r);
+          g.addColorStop(0, "rgba(255,255,255,0.96)");
+          g.addColorStop(0.52, "rgba(255,252,238,0.58)");
+          g.addColorStop(0.82, "rgba(214,235,248,0.22)");
+          g.addColorStop(1, "rgba(214,235,248,0)");
+          ctx.fillStyle = g;
+          ctx.fillRect(0, 0, w, h);
+        }
+        var shadow = ctx.createLinearGradient(0, baseY - 22, 0, baseY + 12);
+        shadow.addColorStop(0, "rgba(255,255,255,0)");
+        shadow.addColorStop(1, "rgba(83,137,169,0.18)");
+        ctx.fillStyle = shadow;
+        ctx.fillRect(0, baseY - 22, w, 34);
+        ctx.clearRect(0, baseY + 11, w, h - baseY - 11);
+      }));
+    }
+    var textures = [cloudTexture(0), cloudTexture(1), cloudTexture(2)];
+    for (var i = 0; i < 18; i++) {
+      var sp = new THREE.Sprite(new THREE.SpriteMaterial({
+        map: textures[i % textures.length], transparent: true, depthWrite: false, fog: false
+      }));
       sp.material.toneMapped = false;
-      sp.material.opacity = 0.5 + Math.random() * 0.25;
-      var a = Math.random() * 6.283, d = 950 + Math.random() * 550;
-      sp.position.set(Math.cos(a) * d, 180 + Math.random() * 160, Math.sin(a) * d);
-      var s = 240 + Math.random() * 160;
-      sp.scale.set(s, s * 0.5, 1);
-      sp.userData.speed = 1.2 + Math.random() * 1.6;
+      sp.material.opacity = 0.62 + Math.random() * 0.22;
+      var a = Math.random() * 6.283, d = 820 + Math.random() * 760;
+      sp.position.set(Math.cos(a) * d, 210 + Math.random() * 190, Math.sin(a) * d);
+      var sc = 210 + Math.random() * 220;
+      sp.scale.set(sc * (1.55 + Math.random() * 0.5), sc * 0.58, 1);
+      sp.userData.speed = 0.7 + Math.random() * 1.35;
       scene.add(sp);
       clouds.push(sp);
     }
@@ -1461,6 +1549,13 @@
       var knot = new THREE.Mesh(new THREE.BoxGeometry(0.3, 0.28, 0.22), mawashiMat);
       knot.position.set(0, 0.1, -0.9 * bellyF);
       torso.add(knot);
+      if (opts.heyaMark) {
+        var tag = new THREE.Mesh(new THREE.CircleGeometry(0.13, 18),
+          new THREE.MeshStandardMaterial({ color: 0xf8f1d8, roughness: 0.72, side: THREE.DoubleSide }));
+        tag.position.set(0, 0.16, 0.88 * bellyF);
+        tag.rotation.x = -0.2;
+        torso.add(tag);
+      }
       if (opts.tsuna) {
         // the yokozuna's white rope, tied at the back, shide strips at the front
         var tsunaMat = texturedStandard(0xfaf6ea, 0.86, 2.4);
@@ -1610,6 +1705,31 @@
         pupil.castShadow = false;
         pupil.position.set(ex, 0.15, 0.385);
         headP.add(pupil);
+      });
+    }
+    var noseMat = texturedStandard(opts.skin || 0xc57f45, 0.56, 1.3);
+    var nose = new THREE.Mesh(new THREE.ConeGeometry(0.075, 0.22, 8), noseMat);
+    nose.rotation.x = Math.PI / 2;
+    nose.position.set(0, 0.045, 0.43);
+    nose.castShadow = false;
+    headP.add(nose);
+    var lipMat = new THREE.MeshStandardMaterial({ color: isRikishi ? 0x7d3e32 : 0x8d4637, roughness: 0.62 });
+    var mouth = new THREE.Mesh(new THREE.BoxGeometry(isRikishi ? 0.2 : 0.17, 0.026, 0.035), lipMat);
+    mouth.position.set(0, -0.125, 0.405);
+    headP.add(mouth);
+    [-0.19, 0.19].forEach(function (cx) {
+      var cheek = orb(skin, 0.075, 1.4, 0.42, 0.34);
+      cheek.castShadow = false;
+      cheek.position.set(cx, -0.015, 0.39);
+      headP.add(cheek);
+    });
+    if (isRikishi) {
+      var eyelidMat = new THREE.MeshStandardMaterial({ color: opts.skin || 0xc57f45, roughness: 0.6 });
+      [-0.15, 0.15].forEach(function (ex) {
+        var lid = new THREE.Mesh(new THREE.BoxGeometry(0.16, 0.028, 0.028), eyelidMat);
+        lid.position.set(ex, 0.195, 0.405);
+        lid.rotation.z = ex < 0 ? 0.08 : -0.08;
+        headP.add(lid);
       });
     }
     var browAng = opts.brow !== undefined ? opts.brow : 0.14;
@@ -2074,7 +2194,7 @@
       var person = buildPerson({
         scale: w.scale, skin: w.skin, belly: w.belly, chest: 1.05,
         outfit: "rikishi", mawashi: w.mawashi || 0xf0ead8,
-        hair: "topknot", brow: 0.3,
+        hair: "topknot", brow: 0.3, heyaMark: w.stable === "Futagoyama" || w.name === "Yoshii",
         label: w.name, rank: w.rank
       });
       var st = stations[i % stations.length];
@@ -2113,7 +2233,7 @@
       var person = buildPerson({
         scale: w.scale, skin: w.skin, belly: w.belly,
         outfit: "rikishi", mawashi: 0x2a2a33,
-        hair: "topknot", brow: 0.18,
+        hair: "topknot", brow: 0.18, heyaMark: true,
         label: w.name, rank: w.rank
       });
       if (i === 0) {
@@ -3366,6 +3486,7 @@
 
     sun.position.copy(sumo.position).addScaledVector(sunDir, 260);
     sun.target.position.copy(sumo.position);
+    sunDisc.position.copy(camera.position).addScaledVector(sunDir, 3200);
     glare.position.copy(camera.position).addScaledVector(sunDir, 3000);
 
     // ---- world life
